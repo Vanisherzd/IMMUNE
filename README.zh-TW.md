@@ -327,3 +327,5 @@ proposal/     競賽簡報（PDF）
 | Lucide 圖示、Simple Icons | 架構圖中的圖示；產品 logo 屬於各自的商標持有者 | ISC；CC0 |
 
 知識庫語料與索引、原始公開資料集、模型權重與 log 都不在這個 repo；評測答案不會進入檢索索引。
+
+這個 repo 的程式碼與文件以 [MIT License](LICENSE) 釋出；第三方資料、模型與圖示沿用上表列出的授權。
