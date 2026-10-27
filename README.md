@@ -17,7 +17,7 @@ IMMUNE is a local recovery agent that sits next to your infrastructure. When som
 **Status: Stage I competition proposal.** IMMUNE builds on a working recovery-agent prototype. This README keeps what exists today and what is proposed in separate sections, so no planned feature reads as finished.
 
 - Proposal deck: [`proposal/IMMUNE-proposal.pdf`](proposal/IMMUNE-proposal.pdf).
-- Core code of the working prototype: the recovery loop, safety gates, knowledge layers and fault-injection bench. See [What this repository contains](#what-this-repository-contains).
+- Core code of the working prototype, from the recovery loop to the operator dashboard. See [Repository layout](#repository-layout).
 
 ---
 
@@ -213,11 +213,12 @@ No manual-operations comparison has been run yet. That baseline is part of the c
 | Guardrails, two-key review, human approval | [`scripts/guard_api.py`](scripts/guard_api.py), [`scripts/reviewer.py`](scripts/reviewer.py), [`scripts/approval.py`](scripts/approval.py) |
 | Repair before replace, configuration validation | [`scripts/agent.py`](scripts/agent.py) |
 | Verification of status and page content | [`scripts/agent.py`](scripts/agent.py) |
-| Audit trail | agent trajectories and tool-call log written to `logs/` |
+| Audit trail and replay | agent trajectories and tool-call log in `logs/`, [`scripts/dashboard.py`](scripts/dashboard.py) |
 | Fault-injection bench, 50 failures in 8 classes | [`scripts/faults.py`](scripts/faults.py) |
 | Scoring harness | [`scripts/score.py`](scripts/score.py) |
-
-The prototype also has an operator dashboard with replay, a network-cut switch, an energy meter, deployment scripts and a two-container test stack. They are not published in this repository.
+| Offline operation, network cut switch | [`scripts/wan.sh`](scripts/wan.sh) |
+| Energy per incident | [`scripts/power.py`](scripts/power.py) |
+| Memory profiling and load shedding | [`scripts/mem-profile.sh`](scripts/mem-profile.sh), [`scripts/resource_governor.py`](scripts/resource_governor.py) |
 
 ### Measured results
 
@@ -285,13 +286,21 @@ The system architecture is shown [above](#architecture). Today's prototype runs 
 | Tool layer | Allow-listed actions, evidence gate, verification, knowledge push | [`scripts/ops_api.py`](scripts/ops_api.py), [`scripts/agent.py`](scripts/agent.py) |
 | Safety gates | Guardrails, reviewer, human approval | [`nemo/`](nemo/), [`scripts/guard_api.py`](scripts/guard_api.py), [`scripts/reviewer.py`](scripts/reviewer.py), [`scripts/approval.py`](scripts/approval.py) |
 | Knowledge | Runbooks, repair cards, community answers, incident memory | [`runbooks/`](runbooks/), [`kb/`](kb/), [`scripts/community_knowledge.py`](scripts/community_knowledge.py), [`scripts/incident_memory.py`](scripts/incident_memory.py) |
+| Dashboard | Board, agent trace, approvals, fault injection, replay | [`scripts/dashboard.py`](scripts/dashboard.py), [`scripts/dashboard.html`](scripts/dashboard.html) |
 | Test bench | Fault injection and scoring | [`scripts/faults.py`](scripts/faults.py), [`scripts/score.py`](scripts/score.py) |
 
-### What this repository contains
+### Operator dashboard
 
-This repository publishes the concept and the core code of the prototype: the recovery loop, the tool layer, safety gates, knowledge retrieval, incident memory and the fault-injection bench.
+```bash
+python3 scripts/dashboard.py                 # http://127.0.0.1:8097/ (DASH_HOST, DASH_PORT)
+DASH_ACTIONS=1 python3 scripts/dashboard.py  # also enables the inject, reset and WAN buttons
+```
 
-Not included: deployment and start scripts, model serving scripts, the agent sandbox configuration, the operator dashboard, the two-container test stack, and the knowledge corpora and indexes. Without them the code does not run end to end; the unit tests run on their own.
+### Running in 32 GB of memory
+
+The full stack used about 46 GB on the prototype device. The plan for machines with 32 GB in total is in [`docs/memory-32gb.md`](docs/memory-32gb.md).
+
+### Tests
 
 Tests run with:
 
@@ -299,18 +308,21 @@ Tests run with:
 uv run --no-project --with pytest python -m pytest tests -q
 ```
 
-On a machine without Docker and the test stack, 4 host-dispatch tests fail and the other 120 pass.
+On a machine without Docker and the test stack, 4 host-dispatch tests fail and the other 126 pass.
 
 ### Repository layout
 
 ```
-scripts/      agent loop, tool API, watchdog, safety gates, knowledge retrieval, fault injection, scoring
+scripts/      agent loop, tool API, watchdog, safety gates, knowledge retrieval, operator dashboard,
+              fault injection, scoring, power and memory profiling
 runbooks/     standard procedures the agent retrieves
 kb/           knowledge-base package (code only) and repair cards
 nemo/         guardrail configuration
 skills/ops/   operating instructions for the agent
 tests/        unit tests
+artifacts/    benchmark summary shown on the dashboard
 assets/       architecture diagrams, editable in draw.io
+docs/         deployment notes
 proposal/     competition deck (PDF)
 ```
 

@@ -92,5 +92,39 @@ class FaultCatalogueTest(unittest.TestCase):
                     self.assertLessEqual(entry["diag_tools"], self.tools)
 
 
+class DashboardCardsTest(unittest.TestCase):
+    def test_default_and_extra_cards_are_catalogued(self):
+        expected = (
+            "nginx-stopped",
+            "container-removed",
+            "bad-config",
+            "upstream-paused",
+            "upstream-500",
+        )
+        cases = set(catalogue()[1])
+        module_name = "scripts.dashboard"
+        previous = os.environ.pop("DASH_EXTRA_CARDS", None)
+        previous_module = sys.modules.pop(module_name, None)
+        try:
+            dashboard = importlib.import_module(module_name)
+            self.assertEqual(dashboard.CARDS, expected)
+            self.assertLessEqual(set(dashboard.CARDS), cases)
+
+            extras = ("compound-config-upstream-down", "compound-detached-paused")
+            os.environ["DASH_EXTRA_CARDS"] = ",".join(extras)
+            dashboard = importlib.reload(dashboard)
+            self.assertEqual(dashboard.CARDS[:5], expected)
+            self.assertEqual(dashboard.CARDS[5:], extras)
+            self.assertLessEqual(set(dashboard.CARDS), cases)
+        finally:
+            sys.modules.pop(module_name, None)
+            if previous_module is not None:
+                sys.modules[module_name] = previous_module
+            if previous is None:
+                os.environ.pop("DASH_EXTRA_CARDS", None)
+            else:
+                os.environ["DASH_EXTRA_CARDS"] = previous
+
+
 if __name__ == "__main__":
     unittest.main()

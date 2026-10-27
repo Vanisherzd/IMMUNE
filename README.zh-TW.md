@@ -17,7 +17,7 @@ IMMUNE 是放在基礎設施旁邊的本地修復 agent。系統出問題時，�
 **狀態：競賽第一階段提案。** IMMUNE 建立在一個已經能運作的修復 agent 原型上。本文件把「今天已經有的」和「提案要做的」分開寫，不會把規劃中的功能寫成已完成。
 
 - 提案簡報：[`proposal/IMMUNE-proposal.pdf`](proposal/IMMUNE-proposal.pdf)。
-- 已能運作的原型核心程式碼：修復迴圈、安全閘門、知識層與故障注入測試台，見[這個 repo 包含什麼](#這個-repo-包含什麼)。
+- 已能運作的原型核心程式碼，從修復迴圈到操作台，見 [Repo 結構](#repo-結構)。
 
 ---
 
@@ -213,11 +213,12 @@ IMMUNE 看的是修復結果，不是模型準確率。
 | Guardrails、雙鑰匙審核、人工核准 | [`scripts/guard_api.py`](scripts/guard_api.py)、[`scripts/reviewer.py`](scripts/reviewer.py)、[`scripts/approval.py`](scripts/approval.py) |
 | 修復優先於替換、設定驗證 | [`scripts/agent.py`](scripts/agent.py) |
 | 狀態碼與頁面內容驗證 | [`scripts/agent.py`](scripts/agent.py) |
-| 稽核紀錄 | 寫進 `logs/` 的 agent 軌跡與工具呼叫 log |
+| 稽核紀錄與回放 | `logs/` 裡的 agent 軌跡與工具呼叫 log、[`scripts/dashboard.py`](scripts/dashboard.py) |
 | 故障注入測試台，8 類 50 種故障 | [`scripts/faults.py`](scripts/faults.py) |
 | 計分工具 | [`scripts/score.py`](scripts/score.py) |
-
-原型另外還有可回放的操作台、斷網開關、耗電量測、部署腳本與雙容器測試環境，這些沒有放在這個 repo。
+| 離線運作、斷網開關 | [`scripts/wan.sh`](scripts/wan.sh) |
+| 每次事故的耗電量 | [`scripts/power.py`](scripts/power.py) |
+| 記憶體量測與負載降級 | [`scripts/mem-profile.sh`](scripts/mem-profile.sh)、[`scripts/resource_governor.py`](scripts/resource_governor.py) |
 
 ### 量測結果
 
@@ -285,13 +286,21 @@ IMMUNE 看的是修復結果，不是模型準確率。
 | 工具層 | 白名單動作、證據關卡、驗證、知識推送 | [`scripts/ops_api.py`](scripts/ops_api.py)、[`scripts/agent.py`](scripts/agent.py) |
 | 安全閘門 | Guardrails、審核、人工核准 | [`nemo/`](nemo/)、[`scripts/guard_api.py`](scripts/guard_api.py)、[`scripts/reviewer.py`](scripts/reviewer.py)、[`scripts/approval.py`](scripts/approval.py) |
 | 知識 | Runbook、修復卡、社群解答、事故記憶 | [`runbooks/`](runbooks/)、[`kb/`](kb/)、[`scripts/community_knowledge.py`](scripts/community_knowledge.py)、[`scripts/incident_memory.py`](scripts/incident_memory.py) |
+| 儀表板 | 看板、agent 軌跡、核准、故障注入、回放 | [`scripts/dashboard.py`](scripts/dashboard.py)、[`scripts/dashboard.html`](scripts/dashboard.html) |
 | 測試台 | 故障注入與計分 | [`scripts/faults.py`](scripts/faults.py)、[`scripts/score.py`](scripts/score.py) |
 
-### 這個 repo 包含什麼
+### 操作台
 
-這個 repo 公開的是概念與原型的核心程式碼：修復迴圈、工具層、安全閘門、知識檢索、事故記憶與故障注入測試台。
+```bash
+python3 scripts/dashboard.py                 # http://127.0.0.1:8097/（DASH_HOST、DASH_PORT）
+DASH_ACTIONS=1 python3 scripts/dashboard.py  # 另外開啟注入、重置與斷網按鈕
+```
 
-沒有包含：部署與啟動腳本、模型推論腳本、agent 沙箱設定、操作台、雙容器測試環境，以及知識庫語料與索引。少了這些，程式碼無法端到端執行；單元測試可以單獨跑。
+### 在 32 GB 記憶體上執行
+
+原型設備上整套系統用了約 46 GB。總記憶體只有 32 GB 的機器怎麼配置，寫在 [`docs/memory-32gb.zh-TW.md`](docs/memory-32gb.zh-TW.md)。
+
+### 測試
 
 執行測試：
 
@@ -299,18 +308,21 @@ IMMUNE 看的是修復結果，不是模型準確率。
 uv run --no-project --with pytest python -m pytest tests -q
 ```
 
-在沒有 Docker 與測試環境的機器上，4 個主機派送測試會失敗，其餘 120 個通過。
+在沒有 Docker 與測試環境的機器上，4 個主機派送測試會失敗，其餘 126 個通過。
 
 ### Repo 結構
 
 ```
-scripts/      agent 迴圈、工具 API、watchdog、安全閘門、知識檢索、故障注入、計分
+scripts/      agent 迴圈、工具 API、watchdog、安全閘門、知識檢索、操作台、
+              故障注入、計分、耗電與記憶體量測
 runbooks/     agent 會檢索的標準程序
 kb/           知識庫套件（只有程式碼）與修復卡
 nemo/         Guardrails 設定
 skills/ops/   agent 的操作指引
 tests/        單元測試
+artifacts/    操作台顯示的 benchmark 摘要
 assets/       架構圖，可用 draw.io 編輯
+docs/         部署說明
 proposal/     競賽簡報（PDF）
 ```
 

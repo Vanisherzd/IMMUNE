@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IMMUNE</title>
+<style>
+:root{--bg:#0f1115;--panel:#181b22;--line:#2a2f3a;--text:#e6e8ec;--dim:#8b93a3;--ok:#2fbf71;--bad:#e5484d;--warn:#f5a524;--info:#4c8dff;--rej:#c36bff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Noto Sans TC",sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:24px;margin:0 12px 0 0}
+.pill{padding:5px 14px;border-radius:999px;border:1px solid var(--line);font-size:16px;white-space:nowrap}
+.pill.ok{border-color:var(--ok);color:var(--ok)}.pill.bad{border-color:var(--bad);color:var(--bad)}
+.pill.warn{border-color:var(--warn);color:var(--warn)}.pill.info{border-color:var(--info);color:var(--info)}
+#replay-badge{display:none;background:var(--warn);color:#000;font-weight:700;padding:3px 12px;border-radius:4px}
+main{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 16px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}
+section h2{font-size:15px;color:var(--dim);margin:0 0 8px;font-weight:600;letter-spacing:.04em}
+#judge-panel{grid-row:span 3}
+.judge{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.jcard{background:#1f2430;border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-width:0}
+.jcard h3{margin:0 0 6px;font-size:14px;color:var(--dim);font-weight:600;letter-spacing:.04em}
+.jcard .big{font-size:30px;font-weight:700;line-height:1.1}.jcard .big small{font-size:14px;color:var(--dim);font-weight:400;margin-left:4px}
+.jcard .line{font-size:15px;color:#c7ccd6;margin-top:3px}.jcard .line b{color:var(--text);font-weight:600}
+.jcard.ok .big{color:var(--ok)}.jcard.warn .big{color:var(--warn)}
+.bar{height:10px;border-radius:5px;background:#12151b;border:1px solid var(--line);margin:6px 0 4px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--ok),#4c8dff);width:0}
+#j-sys .big{font-size:34px}
+.bench{font-size:14px;color:#c7ccd6}.bench div{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #22262f}.bench div span:first-child{color:var(--dim);flex:0 0 46%}
+.bench div span:last-child{font-weight:600;color:var(--text)}
+.rails{font-size:14px;color:#c7ccd6;padding-left:16px;margin:4px 0 0}.rails li{margin:2px 0}
+details.more summary{cursor:pointer;color:var(--dim);font-size:14px;margin-top:4px}
+.lights{display:flex;gap:16px}
+.light{flex:1;padding:18px;border-radius:10px;text-align:center;font-size:22px;font-weight:600;background:#222}
+.light.ok{background:rgba(47,191,113,.15);color:var(--ok)}.light.bad{background:rgba(229,72,77,.18);color:var(--bad)}
+.dc{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.tile{padding:9px 10px;border-radius:8px;background:#1f2430;border:1px solid var(--line);min-width:0}
+.tile .lab{font-size:13px;color:var(--dim);letter-spacing:.03em}.tile .val{font-size:17px;font-weight:600;margin-top:4px;word-break:break-word}
+.tile.ok{border-color:rgba(47,191,113,.5)}.tile.ok .val{color:var(--ok)}.tile.bad{border-color:rgba(229,72,77,.6)}.tile.bad .val{color:var(--bad)}
+.tile.warn{border-color:rgba(245,165,36,.6)}.tile.warn .val{color:var(--warn)}
+@media (max-width:900px){.dc{grid-template-columns:repeat(2,1fr)}}
+iframe{width:100%;height:330px;border:1px solid var(--line);border-radius:6px;margin-top:10px;background:var(--bg);color-scheme:dark;display:none}
+#trace{height:58vh;overflow-y:auto;font:15px/1.5 system-ui,-apple-system,"Noto Sans TC",sans-serif}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:-2px 0 8px;font-size:14px;color:var(--dim)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+#counters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+#counters span{background:#1f2430;border:1px solid var(--line);border-radius:6px;padding:4px 11px;font-size:14px;color:#c7ccd6}
+#counters span b{color:var(--text);font-weight:600}
+.step{display:grid;grid-template-columns:72px 66px 1fr;gap:6px 8px;align-items:start;padding:7px 8px;border-left:3px solid var(--line);margin-bottom:5px;border-radius:0 6px 6px 0;background:rgba(255,255,255,.015)}
+.step .t{color:var(--dim);font:13.5px ui-monospace,Menlo,monospace;padding-top:2px}
+.phase{font-size:13px;font-weight:700;letter-spacing:.04em;padding:2px 0;border-radius:4px;text-align:center;color:#0f1115}
+.phase.obs{background:#7fb0ff}.phase.know{background:#c9a0ff}.phase.act{background:#5fd39a}.phase.verify{background:#ffd166}
+.phase.review{background:#e0b3ff}.phase.sys{background:#9aa3b2}.phase.block{background:#ff9a9e}.phase.vm{background:#8fe3cf}
+.step .what{font-weight:700;color:#eef1f5;font-size:17px;line-height:1.3}
+.step .sub{color:#aeb6c4;margin-top:3px;font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.step .meta{color:var(--dim);font:11px ui-monospace,Menlo,monospace;margin-top:3px;opacity:.75}
+.step .meta .ms{margin-left:8px}
+.step details{margin-top:3px}.step summary{cursor:pointer;color:var(--dim);font-size:12.5px}
+.step pre{margin:4px 0 0;white-space:pre-wrap;word-break:break-word;font:11.5px ui-monospace,Menlo,monospace;color:#b8c0cc;max-height:220px;overflow:auto;background:#12151b;padding:6px;border-radius:4px}
+.step.ok{border-color:var(--ok)}.step.refused{border-color:var(--warn);background:rgba(245,165,36,.07)}
+.step.denied{border-color:var(--bad);background:rgba(229,72,77,.07)}.step.review-rejected{border-color:var(--rej);background:rgba(195,107,255,.09)}
+.step.info{border-color:var(--info)}
+.step .good{color:var(--ok);font-weight:700;margin-top:4px;font-size:16px}.step .badline{color:var(--warn);font-weight:700;margin-top:4px;font-size:15px}
+.inc{margin:12px 0 8px;padding:9px 12px;font-size:16px;border-radius:6px;background:linear-gradient(90deg,rgba(76,141,255,.18),rgba(76,141,255,0));border-left:3px solid var(--info);font-weight:700}
+.inc.done{background:linear-gradient(90deg,rgba(47,191,113,.18),rgba(47,191,113,0));border-left-color:var(--ok)}
+.inc small{color:var(--dim);font-weight:400;margin-left:8px}
+.row{padding:5px 6px;border-left:3px solid var(--line);margin-bottom:4px;word-break:break-word;font:12.5px ui-monospace,Menlo,monospace}
+.row .t{color:var(--dim);margin-right:6px}.row .tool{font-weight:700;margin-right:6px}.row.info{border-color:var(--info)}
+.row .txt{color:#c7ccd6;display:block;margin-top:2px}
+canvas{width:100%;height:170px;display:block}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}.kv b{color:var(--dim);font-weight:500}
+#approval{margin-top:10px;padding:10px;border:2px solid var(--warn);border-radius:8px;display:none}
+#approval .acts{display:flex;gap:8px;margin-top:8px}
+button{background:#232833;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 14px;font-size:15px;cursor:pointer}
+button:hover{border-color:var(--info)}button:disabled{opacity:.4;cursor:not-allowed}
+button.go{border-color:var(--ok);color:var(--ok)}button.stop{border-color:var(--bad);color:var(--bad)}
+footer{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 16px;align-items:center}
+footer .sep{width:1px;height:24px;background:var(--line);margin:0 6px}
+#msg{color:var(--dim);font-size:14px;margin-left:8px}
+select{background:#232833;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:15px}
+@media (max-width:900px){main{grid-template-columns:1fr}#judge-panel{grid-row:auto}#trace{height:45vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>IMMUNE <small style="color:var(--dim);font-weight:400;font-size:12px;margin-left:6px">自主基礎設施免疫系統 · 本地運算</small></h1>
+  <span id="replay-badge">REPLAY</span>
+  <span id="p-health" class="pill">服務 —</span>
+  <span id="p-incident" class="pill">事故 —</span>
+  <span id="p-tier" class="pill">Tier —</span>
+  <span id="p-wan" class="pill">WAN —</span>
+  <span id="p-link" class="pill">連線 —</span>
+</header>
+<main>
+  <section>
+    <h2>被監控系統：廠務網段（產線看板 · MES API）｜同一組服務的資料中心視角</h2>
+    <div class="lights"><div id="l-front" class="light">產線看板前端 —</div><div id="l-api" class="light">MES API —</div></div>
+    <div class="dc" id="dc"></div>
+    <iframe id="board" title="廠務看板"></iframe>
+  </section>
+  <section id="trace-panel">
+    <h2>Agent 軌跡 — 看到什麼 · 怎麼判斷 · 做了什麼 · 驗證了沒</h2>
+    <div class="legend"><span><i style="background:#7fb0ff"></i>觀察（唯讀）</span><span><i style="background:#c9a0ff"></i>知識（runbook／記憶／社群）</span><span><i style="background:#5fd39a"></i>修復動作</span><span><i style="background:#ffd166"></i>驗證</span><span><i style="background:#e0b3ff"></i>審核</span><span><i style="background:#ff9a9e"></i>被規則擋下</span><span><i style="background:#9aa3b2"></i>系統</span></div>
+    <div id="counters"><span>步驟 <b id="c-steps">0</b></span><span>修復動作 <b id="c-acts">0</b></span><span>被擋 <b id="c-blocked">0</b></span><span>知識查詢 <b id="c-know">0</b></span><span>經過 <b id="c-secs">—</b></span></div>
+    <div id="report" style="display:none;margin:0 0 8px;padding:8px 10px;border:1px solid var(--ok);border-radius:6px;background:rgba(47,191,113,.08)">
+      <div style="font-size:14px;color:var(--dim);margin-bottom:4px">agent 的結案報告（它自己寫的三行）<span id="rp-when" style="margin-left:8px"></span></div>
+      <div class="kv" style="grid-template-columns:auto 1fr;gap:2px 10px"><b>根因</b><span id="rp-cause"></span><b>動作</b><span id="rp-actions"></span><b>最終健康</b><span id="rp-health"></span></div>
+    </div>
+    <div id="trace"></div>
+  </section>
+  <section id="judge-panel">
+    <h2>評審看的四件事（即時）— 場景價值 · 任務完成度 · 推論效率 · 穩定安全</h2>
+    <div class="judge">
+      <div class="jcard" id="j-task"><h3>事故處理（今日）</h3><div class="big" id="j-task-big">—</div><div class="line" id="j-task-l1"></div><div class="line" id="j-task-l2"></div></div>
+      <div class="jcard" id="j-inf"><h3>推論效率（即時）</h3><div class="big" id="j-inf-big">—</div><div class="line" id="j-inf-l1"></div><div class="line" id="j-inf-l2"></div></div>
+      <div class="jcard" id="j-sys"><h3>記憶體 / 資源（統一記憶體，無 swap）</h3><div class="big" id="j-sys-big">—</div><div class="bar"><i id="j-sys-bar"></i></div><div class="line" id="j-sys-l1"></div><div class="line" id="j-sys-l2"></div></div>
+      <div class="jcard" id="j-safe"><h3>穩定安全（今日）</h3><div class="big" id="j-safe-big">—</div><div class="line" id="j-safe-l1"></div><div class="line" id="j-safe-l2"></div></div>
+    </div>
+    <div class="jcard" style="margin-top:8px"><h3>工具呼叫（今日，依階段）</h3><div class="line" id="j-tools"></div><div class="line" id="j-tools-top" style="color:var(--dim)"></div></div>
+    <details class="more"><summary>Benchmark（全部是量到的，來源在右）</summary><div class="bench" id="j-bench"></div></details>
+    <details class="more"><summary>安全護欄（agent 被限制在哪裡）</summary><ul class="rails" id="j-rails"></ul></details>
+  </section>
+  <section>
+    <h2>功耗（模組電源軌）</h2>
+    <canvas id="power" width="600" height="170"></canvas>
+    <div id="power-note" style="color:var(--dim);font-size:14px"></div>
+  </section>
+  <section>
+    <h2>網路與審批</h2>
+    <div class="kv">
+      <b>WAN</b><span id="k-wan">—</span>
+      <b>對外連線（sandbox）</b><span id="k-blocked">—</span>
+      <b>審批通道</b><span id="k-channel">本機</span>
+      <b>審批模式</b><span id="k-mode">—</span>
+      <b>巡檢</b><span id="k-watchdog">—</span>
+    </div>
+    <div id="approval">
+      <div><b>待審批</b> <span id="a-action"></span></div>
+      <div id="a-reason" style="color:#c7ccd6;margin-top:4px"></div>
+      <div class="acts"><button class="go" onclick="decide('approve')">核准</button><button class="stop" onclick="decide('reject')">拒絕</button></div>
+    </div>
+  </section>
+</main>
+<footer>
+  <span style="color:var(--dim)">注入</span>
+  <button class="act" data-case="nginx-stopped">nginx-stopped</button>
+  <button class="act" data-case="container-removed">container-removed</button>
+  <button class="act" data-case="bad-config">bad-config</button>
+  <button class="act" data-case="upstream-paused">upstream-paused</button>
+  <button class="act" data-case="upstream-500">upstream-500</button>
+  <button class="act" data-case="random" title="從整個故障目錄隨機抽一個注入；agent 收到的警報和平常一樣，不知道抽到哪個">隨機真實故障</button>
+  <select id="cases" title="整個故障目錄（八類）"><option value="">全部故障：選一個…</option></select>
+  <button class="act" id="inject-sel">注入所選</button>
+  <button class="act" data-a="reset">reset</button>
+  <span class="sep"></span>
+  <button class="act stop" data-a="wan-down">切斷外網</button>
+  <button class="act go" data-a="wan-up">恢復外網</button>
+  <span class="sep"></span>
+  <select id="runs"><option value="">回放：選一場…</option></select>
+  <button onclick="startReplay()">回放</button>
+  <button onclick="stopReplay()">回到即時</button>
+  <span id="msg"></span>
+</footer>
+<script>
+const $ = id => document.getElementById(id);
+let replaying = false, replayTimers = [], power = [], lastSeen = Date.now(), pending = null;
+
+function pill(el, text, cls){ el.textContent = text; el.className = 'pill ' + (cls || ''); }
+function hms(t){ if (typeof t === 'string') return t; const d = new Date(t * 1000); return d.toTimeString().slice(0, 8); }
+function esc(s){ return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+const OBS = new Set(['check_health','docker_ps','docker_logs','docker_exec','read_config','port_check','http_check','disk_usage','service_status','journal_tail','top_processes','evidence_bundle','parallel_diagnosis']);
+const KNOW = new Set(['search_runbooks','search_incident_knowledge','community_push']);
+const ACT = new Set(['docker_start','docker_restart','write_config','restore_config','recreate_stack','network_repair','clear_scratch_volume','cleanup_disk','kill_process','vm_service','vm_write_config','vm_restore_config','self_heal']);
+const VM = new Set(['vm_exec','vm_logs','vm_service','vm_write_config','vm_restore_config']);
+const ZH = {
+  check_health: () => '檢查兩個健康 URL',
+  evidence_bundle: () => '一次收集第一手證據：健康、容器狀態、兩邊日誌、設定、port、磁碟',
+  parallel_diagnosis: () => '平行開兩個唯讀專家各看一遍（服務面／平台面）',
+  docker_ps: () => '看容器狀態',
+  docker_logs: a => `讀 ${a.name || '容器'} 的日誌（最後 ${a.tail || 40} 行）`,
+  docker_exec: a => `在 ${a.name || '容器'} 裡執行唯讀指令 \u300c${short(a.cmd, 60)}\u300d`,
+  read_config: () => '讀前端 nginx 設定檔',
+  port_check: a => `測 ${a.host || '127.0.0.1'}:${a.port} 有沒有在聽`,
+  http_check: a => `對 ${short(a.url, 50)} 發 GET`,
+  disk_usage: () => '看磁碟與 inode 用量',
+  service_status: a => `看主機服務 ${a.unit} 狀態`,
+  journal_tail: a => `讀主機服務 ${a.unit} 的 journal`,
+  top_processes: () => '看主機前幾名程序',
+  search_runbooks: a => `查 runbook：\u300c${short(a.query, 70)}\u300d`,
+  search_incident_knowledge: a => `查知識庫（修復卡／自己的事故記憶／社群）：\u300c${short(a.query, 60)}\u300d`,
+  community_push: a => `系統自動附上社群參考（症狀：\u300c${short(a.query, 50)}\u300d）`,
+  docker_start: a => `啟動容器 ${a.name}`,
+  docker_restart: a => `重啟容器 ${a.name}`,
+  write_config: () => '改寫前端 nginx 設定（nginx -t 先驗，壞的會被退回）',
+  restore_config: a => a.source === 'previous' ? '還原上一版設定檔' : '還原已知良好的設定檔',
+  recreate_stack: a => `重建容器 ${a.name || '整組'}${a.replace ? '（替換掉壞的那個）' : ''}`,
+  network_repair: () => '修復 docker 網路（確保兩個容器都在 edge-net）',
+  clear_scratch_volume: () => '清空暫存卷（inode 用光）',
+  cleanup_disk: () => '清理磁碟',
+  kill_process: a => `終止程序 pid ${a.pid}`,
+  self_heal: () => '呼叫腳本化修復迴圈（旁門，已不再提供）',
+  vm_exec: a => `（VM）ssh 唯讀指令 \u300c${short(a.cmd, 60)}\u300d`,
+  vm_logs: () => '（VM）讀 nginx journal 與 error.log',
+  vm_service: a => `（VM）systemctl ${a.action} ${a.unit || 'nginx'}`,
+  vm_write_config: () => '（VM）改寫 nginx 站台設定（nginx -t 先驗）',
+  vm_restore_config: () => '（VM）還原已知良好的站台設定',
+  finish: () => '結案報告',
+};
+function short(x, n){ x = String(x == null ? '' : x); return x.length > n ? x.slice(0, n - 1) + '…' : x; }
+function phaseOf(r){
+  if (r.src === 'review') return ['審核', 'review'];
+  if (r.src === 'incident' || r.src === 'tier' || r.cls === 'info') return ['系統', 'sys'];
+  if (r.cls && r.cls !== 'ok') return ['被擋', 'block'];
+  if (ACT.has(r.tool)) return ['修復', 'act'];
+  if (KNOW.has(r.tool)) return ['知識', 'know'];
+  if (VM.has(r.tool)) return ['觀察', 'obs'];
+  if (r.tool === 'check_health') return ['驗證', 'verify'];
+  return ['觀察', 'obs'];
+}
+function fmtStatus(st){
+  if (st && typeof st === 'object') return Object.entries(st).map(([k, v]) => (k === 'front' ? '前端' : k === 'api' ? 'API' : k) + ' ' + (v === 200 ? '200' : (v || '無回應'))).join(' / ');
+  return String(st).replace(/"front":\s*/g, '前端 ').replace(/"api":\s*/g, 'API ').replace(/[{}"]/g, '');
+}
+function firstLine(txt, re){ const m = String(txt || '').split('\n').find(l => re.test(l)); return m ? m.trim() : ''; }
+function explain(r){
+  const a = r.args || {}, txt = String(r.text || '');
+  let what = (ZH[r.tool] || (() => r.tool))(a), sub = '', good = '', bad = '';
+  if (r.cls === 'refused') bad = '被規則擋下：' + short(txt.replace(/^refused:\s*/, ''), 160);
+  else if (r.cls === 'denied') bad = '被拒絕：' + short(txt.replace(/^denied:\s*/, ''), 160);
+  else if (r.cls === 'review-rejected') bad = '審核代理否決：' + short(txt.replace(/^review-rejected:\s*/, ''), 160);
+  else if (r.src === 'review') { what = (txt.startsWith('APPROVE') ? '審核通過：' : '審核否決：') + r.tool; sub = short(txt.replace(/^(APPROVE|REJECT):\s*/, ''), 160); }
+  else if (r.src === 'incident') {
+    let d = {}; try { d = JSON.parse(txt); } catch (err) {}
+    const st = d.status ? ' · 健康 ' + fmtStatus(d.status) : '';
+    what = ({open: d.dispatched ? '巡檢發現異常，開事故並派工給 agent' : `巡檢發現異常，開事故（${d.why === 'drill in progress' ? '演練進行中，只觀察不派工' : d.why === 'dry-run' ? '乾跑' : (d.why || '未派工')}）`,
+             close: `事故結案：${d.outcome === 'resolved' ? '服務恢復' : d.outcome || ''}${d.seconds != null ? '，共 ' + d.seconds + ' s' : ''}`,
+             'agent-done': 'agent 回報完成', 'agent-done-unhealthy': 'agent 結束了但服務仍異常', timeout: 'agent 逾時，巡檢接手',
+             signal: `訊號層：${d.signal || ''}${d.severity ? '（' + d.severity + '）' : ''}`,
+             'previous-agent-stopped': '停掉上一場殘留的 agent', 'agent-stopped-after-close': '結案後把還在跑的 agent 收掉'})[r.tool] || ('事故事件 ' + r.tool);
+    sub = (d.id ? '事故 ' + d.id : '') + st + (d.rc != null ? ' · 結束碼 ' + d.rc : '') + (d.detail ? ' · ' + short(d.detail, 100) : '');
+  }
+  else if (r.src === 'tier') { let d = {}; try { d = JSON.parse(txt); } catch (err) {} what = `推論模式切到 Tier-${d.tier != null ? d.tier : r.tool.replace(/\D/g, '')}${d.mode ? '（' + d.mode + '）' : ''}`; sub = d.reason ? short(d.reason, 120) : ''; }
+  else {
+    if (r.tool === 'check_health') { const m = txt.match(/\{[^}]*\}/); if (m) sub = '結果：' + m[0].replace(/"front":\s*/, '前端 ').replace(/"api":\s*/, 'API ').replace(/[{}"]/g, ''); }
+    else if (r.tool === 'docker_ps') sub = short(txt.split('\n').filter(Boolean).slice(0, 3).join(' · ').replace(/\t/g, ' '), 140);
+    else if (r.tool === 'docker_logs' || r.tool === 'vm_logs' || r.tool === 'journal_tail') {
+      const err = firstLine(txt, /\[(emerg|error|alert|crit)\]|failed|refused|denied|timed out|No such|Permission|Exited/i);
+      sub = err ? '找到：' + short(err.replace(/^\d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d /, ''), 150) : (/no error/i.test(txt) ? '日誌裡沒有錯誤行' : '');
+      if (/--- matching runbook/.test(txt)) { const rb = txt.match(/## ([\w.-]+\.md)/); if (rb) sub += (sub ? '；' : '') + '系統附上 runbook ' + rb[1]; }
+      if (/own verified recovery/.test(txt)) sub += (sub ? '；' : '') + '附上這台自己驗證過的修復記憶';
+      if (/community references/.test(txt)) sub += (sub ? '；' : '') + '附上社群參考';
+      if (/earlier distinct error lines/.test(txt)) sub += (sub ? '；' : '') + '附上更早的錯誤行';
+    }
+    else if (r.tool === 'search_runbooks') { const rb = txt.match(/## ([\w.-]+\.md)/) || txt.match(/^# ?(.+)$/m); sub = rb ? '命中：' + short(rb[1], 80) : short(txt, 120); }
+    else if (r.tool === 'search_incident_knowledge') sub = /own verified recoveries/.test(txt) ? '有這台自己的修復記憶' : short(firstLine(txt, /knowledge base|matched|insufficient/) || txt, 120);
+    else if (r.tool === 'community_push') sub = short(txt, 80);
+    else if (r.tool === 'evidence_bundle') { const h = txt.match(/check_health[^\n]*\n(\{[^}]*\})/); sub = h ? '健康：' + h[1].replace(/[{}"]/g, '').replace('front:', '前端 ').replace('api:', 'API ') : ''; }
+    else if (r.tool === 'read_config' || r.tool === 'docker_exec' || r.tool === 'vm_exec') sub = short(txt.split('\n').filter(Boolean)[0] || '', 120);
+    else if (ACT.has(r.tool)) sub = short(txt.split('\n').filter(l => l && !/^health now|^containers now|^still failing|^\s*edge-victim/.test(l))[0] || '', 120);
+    else sub = short(txt.split('\n')[0] || '', 120);
+    const hl = (r.health || '') + txt;
+    if (/both URLs healthy/.test(hl)) good = '→ 修好了：兩個健康 URL 都 200，事故結案';
+    else if (/still failing/.test(hl)) bad = '→ 還沒好（動作後的健康檢查仍紅）：' + short((r.health || '').replace(/^health now:\s*/, '').split('\n')[0].replace(/"front":\s*/, '前端 ').replace(/"api":\s*/, 'API ').replace(/[{}"]/g, ''), 60) + '，繼續查';
+    else if (r.tool === 'check_health' && /"front": 200, "api": 200/.test(txt)) good = '兩個 URL 都 200';
+  }
+  return {what, sub, good, bad};
+}
+const counters = {steps: 0, acts: 0, blocked: 0, know: 0, t0: null, tok0: null, wall0: null};
+let lastMetrics = null;
+function resetCounters(){ Object.assign(counters, {steps: 0, acts: 0, blocked: 0, know: 0, t0: null, tok0: lastMetrics ? lastMetrics.gen_tokens : null, wall0: Date.now() / 1000}); paintCounters(); }
+function incidentWh(){   // energy over this incident from the power samples (mW at ts), trapezoid, since the incident banner
+  if (counters.wall0 == null) return null;
+  const pts = power.filter(p => p.ts >= counters.wall0 && p.mw != null); if (pts.length < 2) return null;
+  let j = 0; for (let i = 1; i < pts.length; i++) j += (pts[i].mw + pts[i - 1].mw) / 2 * (pts[i].ts - pts[i - 1].ts);   // mW·s
+  return j / 3.6e6;
+}
+function paintCounters(){
+  $('c-steps').textContent = counters.steps; $('c-acts').textContent = counters.acts; $('c-blocked').textContent = counters.blocked; $('c-know').textContent = counters.know;
+  $('c-secs').textContent = counters.t0 == null ? '—' : Math.round((counters.last - counters.t0)) + ' s';
+}
+function secs(t){ if (typeof t === 'number') return t; const m = String(t || '').match(/^(\d\d):(\d\d):(\d\d)/); return m ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) : null; }
+function addRow(r){
+  if ((r.tool === 'community_push' || r.tool === 'memory_push') && /^0 /.test(String(r.text || ''))) return;   // silent lookups are noise on the wall
+  const box = $('trace'), atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
+  const div = document.createElement('div');
+  if (r.tool === '— 新一場 —' || (r.tool && String(r.tool).startsWith('REPLAY'))){
+    resetCounters();
+    div.className = 'inc'; div.innerHTML = `${esc(r.tool === '— 新一場 —' ? '新的一場開始' : r.tool)}<small>${hms(r.t)} ${esc(r.text || '')}</small>`;
+  } else {
+    const [label, cls] = phaseOf(r), e = explain(r);
+    const s = secs(r.t); if (s != null){ if (counters.t0 == null) counters.t0 = s; counters.last = s; }
+    if (r.src === 'call' || r.src == null){ counters.steps++; if (ACT.has(r.tool) && r.cls === 'ok') counters.acts++; if (r.cls && r.cls !== 'ok') counters.blocked++; if (KNOW.has(r.tool)) counters.know++; }
+    paintCounters();
+    div.className = 'step ' + (r.cls || 'ok');
+    const raw = (r.args && Object.keys(r.args).length ? JSON.stringify(r.args) + '\n' : '') + String(r.text || '');
+    const ms = r.ms != null ? `<span class="ms">${r.ms} ms</span>` : '';
+    div.innerHTML = `<span class="t">${hms(r.t)}</span><span class="phase ${cls}">${label}</span><div><div class="what">${esc(e.what)}</div>` +
+      (e.sub ? `<div class="sub">${esc(e.sub)}</div>` : '') + (e.good ? `<div class="good">${esc(e.good)}</div>` : '') + (e.bad ? `<div class="badline">${esc(e.bad)}</div>` : '') +
+      `<div class="meta">${esc(r.tool || '')}${ms}</div>` + (raw.trim() ? `<details><summary>原始內容</summary><pre>${esc(short(raw, 1800))}</pre></details>` : '') + `</div>`;
+    if (e.good) { const h = document.createElement('div'); h.className = 'inc done'; const wh = incidentWh(); const tk = lastMetrics && counters.tok0 != null ? lastMetrics.gen_tokens - counters.tok0 : null;
+      h.innerHTML = `事故結案<small>${hms(r.t)} · 本場 ${counters.steps} 步、${counters.acts} 個修復動作、${counters.blocked} 次被擋${counters.t0 != null ? '、' + Math.round(counters.last - counters.t0) + ' s' : ''}${wh != null ? '、耗電 ' + wh.toFixed(2) + ' Wh' : ''}${tk != null && tk > 0 ? '、模型產出 ' + tk + ' tokens' : ''}</small>`; box.appendChild(div); box.appendChild(h); while (box.children.length > 400) box.removeChild(box.firstChild); if (atEnd) box.scrollTop = box.scrollHeight; return; }
+  }
+  box.appendChild(div);
+  while (box.children.length > 400) box.removeChild(box.firstChild);
+  if (atEnd) box.scrollTop = box.scrollHeight;
+}
+
+function drawPower(){
+  const c = $('power'), g = c.getContext('2d'), W = c.width = c.clientWidth * devicePixelRatio, H = c.height = 170 * devicePixelRatio;
+  g.clearRect(0, 0, W, H);
+  const pts = power.slice(-240).filter(p => p.mw != null);
+  if (pts.length < 2){ $('power-note').textContent = pts.length ? '' : '尚無功耗資料（scripts/power.py 未啟動）'; return; }
+  const t0 = pts[0].ts, t1 = pts[pts.length - 1].ts, max = Math.max(...pts.map(p => p.mw)) * 1.15 || 1;
+  g.strokeStyle = '#2a2f3a'; g.lineWidth = 1;
+  for (let i = 1; i < 4; i++){ g.beginPath(); g.moveTo(0, H * i / 4); g.lineTo(W, H * i / 4); g.stroke(); }
+  g.strokeStyle = '#4c8dff'; g.lineWidth = 2 * devicePixelRatio; g.beginPath();
+  pts.forEach((p, i) => { const x = (p.ts - t0) / Math.max(1, t1 - t0) * W, y = H - p.mw / max * H; i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.stroke();
+  const last = pts[pts.length - 1].mw;
+  $('power-note').textContent = `現在 ${(last / 1000).toFixed(1)} W · 視窗峰值 ${(Math.max(...pts.map(p => p.mw)) / 1000).toFixed(1)} W · ${Math.round(t1 - t0)} s`;
+}
+
+function render(s){
+  const codes = Object.values(s.health || {});
+  const [front, api] = [codes[0], codes[1]];
+  $('l-front').textContent = `產線看板前端  ${front || '無回應'}`; $('l-front').className = 'light ' + (front === 200 ? 'ok' : 'bad');
+  $('l-api').textContent = `MES API  ${api || '無回應'}`; $('l-api').className = 'light ' + (api === 200 ? 'ok' : 'bad');
+  pill($('p-health'), s.healthy ? '服務正常' : '服務異常', s.healthy ? 'ok' : 'bad');
+  if (s.dc){ $('dc').innerHTML = s.dc.map(t => `<div class="tile ${t.cls || ''}"><div class="lab">${esc(t.label)}</div><div class="val">${esc(t.value)}</div></div>`).join(''); }
+  if (s.incident) pill($('p-incident'), `事故 ${s.incident.id}${s.incident.last ? ' · ' + s.incident.last : ''}`, 'bad');
+  else pill($('p-incident'), s.drill_running ? '隨機錯誤注入中' : '無事故', s.drill_running ? 'warn' : 'ok');
+  if (s.tier) pill($('p-tier'), `Tier-${s.tier.tier}${s.tier.mode ? ' · ' + s.tier.mode : ''}`, s.tier.tier === 2 ? 'warn' : 'ok');
+  else pill($('p-tier'), 'Tier —（無控制器）', '');
+  const wan = String(s.wan || '');
+  const online = wan.startsWith('online'), offline = wan.startsWith('offline');
+  pill($('p-wan'), online ? 'WAN online' : offline ? 'WAN offline' : 'WAN ?', online ? 'ok' : offline ? 'bad' : '');
+  $('k-wan').textContent = wan;
+  const m = wan.match(/sandbox_blocked=(\d+)/); $('k-blocked').textContent = m ? `${m[1]} 次被擋（成功 0）` : (online ? '—' : '?');
+  $('k-channel').textContent = offline ? '本機（外網不可用）' : '本機';
+  $('k-mode').textContent = ({manual: '風險動作需人工核准', auto: '自動（演練）', off: '關閉'}[s.approval_mode] || s.approval_mode);
+  $('k-watchdog').textContent = s.watchdog ? '巡檢中（每 2 s 探測兩個 URL，不推論；異常連兩次即開事故）' : (s.drill_running ? '隨機混合多重錯誤注入中：每一注入直接派工 agent，結束後恢復 2 s 巡檢' : '未啟動');
+  const sc = s.score || {}, mt = s.metrics, sy = s.sys || {}; if (mt) lastMetrics = mt;
+  const hd = sc.handled || {};
+  if (hd.n){ $('j-task-big').innerHTML = `${hd.median_s} s<small>平均處理時間（中位，${hd.n} 場自主修復）</small>`; $('j-task').className = 'jcard ok';
+    $('j-task-l1').innerHTML = `最快 <b>${hd.fastest.s} s</b>（${esc(hd.fastest.case)}）· 最慢 <b>${hd.slowest.s} s</b>（${esc(hd.slowest.case)}）· 平均 <b>${hd.mean_s} s</b>`;
+    $('j-task-l2').innerHTML = `越修越壞 <b>${sc.worse ?? 0}</b> · 謊報健康 <b>${sc.false ?? 0}</b>${hd.last ? ' · 最近一場 <b>' + esc(hd.last.case) + ' ' + hd.last.s + ' s</b>（做了什麼見下方結案報告）' : ''}`; }
+  else { $('j-task-big').innerHTML = `${sc.incidents_closed || 0}<small>事故結案</small>`; $('j-task-l1').innerHTML = `越修越壞 <b>${sc.worse ?? 0}</b> · 謊報健康 <b>${sc.false ?? 0}</b>`; $('j-task-l2').textContent = ''; }
+  if (mt){ $('j-inf-big').innerHTML = (mt.tps != null && mt.tps > 0 ? mt.tps : '—') + '<small>tok/s decode（近 10 s）</small>'; $('j-inf').className = 'jcard ' + (mt.running ? 'ok' : '');
+    $('j-inf-l1').innerHTML = `首 token <b>${mt.ttft != null ? mt.ttft + ' s' : '—'}</b> · 平均請求 <b>${mt.e2e != null ? mt.e2e + ' s' : '—'}</b> · 進行中 <b>${mt.running}</b>`;
+    $('j-inf-l2').innerHTML = `prefix cache 命中 <b>${mt.prefix_hit != null ? mt.prefix_hit + '%' : '—'}</b> · KV 使用 <b>${mt.kv}%</b> · 已產生 <b>${(mt.gen_tokens/1000).toFixed(0)}k</b> tokens／${mt.requests} 次`; }
+  else { $('j-inf-big').innerHTML = '—<small>推論端點 /metrics 無回應</small>'; }
+  if (sy.ram_total_gb){ const used = (sy.ram_total_gb - sy.ram_avail_gb); $('j-sys-big').innerHTML = `${used.toFixed(1)} GB<small>整套在用（模型 + KV + 知識層 + sandbox + 靶機）／${sy.ram_total_gb} GB</small>`; $('j-sys-bar').style.width = Math.min(100, 100 * used / sy.ram_total_gb).toFixed(0) + '%'; $('j-sys').className = 'jcard ' + (sy.ram_avail_gb > 16 ? 'ok' : 'warn'); }
+  else $('j-sys-big').innerHTML = '—<small>RAM</small>';
+  $('j-sys-l1').innerHTML = `可用 <b>${sy.ram_avail_gb != null ? sy.ram_avail_gb + ' GB' : '—'}</b> · 權重 NVFP4 17.8 GiB · KV 預留可調（0.20–0.25）· 知識索引 2.5 GiB → <b>幾 MB</b>（FTS5）`;
+  $('j-sys-l2').innerHTML = `GPU <b>${sy.gpu != null ? sy.gpu + '%' : '—'}</b>${sy.gpu_w != null ? ' · ' + sy.gpu_w + ' W' : ''}${sy.gpu_temp != null ? ' · ' + sy.gpu_temp.toFixed(0) + '°C' : ''} · CPU <b>${sy.cpu != null ? sy.cpu + '%' : '—'}</b>${sy.cores ? '／' + sy.cores + ' 核' : ''}`;
+  $('j-safe-big').innerHTML = `${sc.destructive ?? 0}<small>破壞性工具執行</small>`; $('j-safe').className = 'jcard ' + ((sc.destructive || 0) === 0 ? 'ok' : 'warn');
+  $('j-safe-l1').innerHTML = `規則擋下 <b>${sc.blocked ?? 0}</b> · 審核否決 <b>${sc.rejected ?? 0}</b> · 人工審批 <b>${sc.approvals ?? 0}</b>`;
+  $('j-safe-l2').innerHTML = `巡檢 <b>${s.watchdog ? '開' : (s.drill_running ? '錯誤注入中（直接派工）' : '關')}</b> · Guardrails <b>開</b> · 審批 <b>${s.approval_mode}</b>`;
+  if (sc.tools){ const ph = sc.tools.phases || {}; $('j-tools').innerHTML = `共 <b>${sc.tools.total}</b> 次：觀察 <b>${ph.observe || 0}</b> · 知識 <b>${ph.knowledge || 0}</b> · 修復 <b>${ph.repair || 0}</b> · 破壞性 <b>${ph.destructive || 0}</b> · 被擋 <b>${sc.tools.blocked || 0}</b>`;
+    $('j-tools-top').textContent = '最常用：' + (sc.tools.top || []).map(([n, c]) => `${n} ×${c}`).join('、'); }
+  if (sc.benchmark && !$('j-bench').dataset.done){ $('j-bench').innerHTML = (sc.benchmark.items || []).map(i => `<div><span>${esc(i.k)}</span><span>${esc(i.v)}</span></div>`).join('') + `<div><span>更新</span><span>${esc(sc.benchmark.updated || '')}</span></div>`; $('j-bench').dataset.done = '1'; }
+  if (sc.guardrails && !$('j-rails').dataset.done){ $('j-rails').innerHTML = sc.guardrails.map(g => `<li>${esc(g)}</li>`).join(''); $('j-rails').dataset.done = '1'; }
+  const rp = s.report;
+  $('report').style.display = rp ? 'block' : 'none';
+  if (rp){ $('rp-cause').textContent = rp.root_cause || '—'; $('rp-actions').textContent = rp.actions || '—'; $('rp-health').textContent = rp.final_health || '—';
+    const age = Math.max(0, Math.round((s.ts || Date.now() / 1000) - rp.ts)); $('rp-when').textContent = (rp.source === 'drill' ? '演練' : '事故') + ' · ' + (age < 90 ? age + ' s 前' : Math.round(age / 60) + ' 分鐘前'); }
+  pending = s.approval;
+  $('approval').style.display = pending ? 'block' : 'none';
+  if (pending){ $('a-action').textContent = (ZH[pending.action] || (() => pending.action))(pending.args || {}); $('a-reason').textContent = (pending.reason || '') + `　（${pending.action} ${JSON.stringify(pending.args || {})}）`; }
+  document.querySelectorAll('.act').forEach(b => b.disabled = !s.actions || s.drill_running);   // one injection at a time
+}
+
+function connect(){
+  const es = new EventSource('events');
+  es.onmessage = e => {
+    lastSeen = Date.now(); pill($('p-link'), '連線正常', 'ok');
+    if (replaying) return;
+    const m = JSON.parse(e.data);
+    if (m.reset && m.reset.includes('ops-api.log')) addRow({t: Date.now() / 1000, tool: '— 新一場 —', cls: 'info', text: ''});
+    (m.trace || []).forEach(addRow);
+    if (m.power){ power.push(...m.power); power = power.slice(-600); drawPower(); }
+    render(m.state);
+  };
+  es.onerror = () => {};
+}
+setInterval(() => { if (Date.now() - lastSeen > 5000) pill($('p-link'), '資料流重新連線中…', 'warn'); }, 1000);
+
+function loadBoard(){
+  // nginx's catch-all answers 200 text/plain until /board/ exists, so only an HTML answer is the board
+  fetch('board/').then(r => { if (r.ok && (r.headers.get('Content-Type') || '').includes('html')){ $('board').src = 'board/'; $('board').style.display = 'block'; } }).catch(() => {});
+}
+
+async function post(url, body){
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  $('msg').textContent = r.ok ? `✓ ${j.cmd || ''}` : `✗ ${j.error || j.out || r.status}`;
+}
+document.querySelectorAll('.act').forEach(b => b.onclick = () =>
+  post('api/action', b.dataset.case ? {action: 'inject', case: b.dataset.case} : {action: b.dataset.a}));
+function decide(d){ if (pending) post('api/approval', {id: pending.id, decision: d}); }
+
+async function loadCases(){
+  const j = await fetch('api/cases').then(r => r.json()).catch(() => null); if (!j) return;
+  const sel = $('cases'); sel.options[0].textContent = `全部故障（${j.total} 案）：選一個…`;
+  j.groups.forEach(g => { const og = document.createElement('optgroup'); og.label = `${g.label}（${g.items.length}）`;
+    g.items.forEach(i => { const o = document.createElement('option'); o.value = i.name; o.textContent = `${i.name}${i.zh ? ' — ' + i.zh : ''}`; og.appendChild(o); }); sel.appendChild(og); });
+  $('inject-sel').onclick = () => { const c = sel.value; if (c) post('api/action', {action: 'inject', case: c}); };
+}
+async function loadRuns(){
+  const j = await fetch('api/runs').then(r => r.json()).catch(() => ({runs: []}));
+  const sel = $('runs');
+  j.runs.forEach(r => { const o = document.createElement('option'); o.value = r.run; o.textContent = `${r.run} · ${r.verify || '?'} · ${r.seconds || '?'}s`; sel.appendChild(o); });
+}
+async function startReplay(){
+  const run = $('runs').value; if (!run) return;
+  const j = await fetch('api/replay?run=' + encodeURIComponent(run)).then(r => r.json());
+  stopReplay(); replaying = true; $('replay-badge').style.display = 'inline-block';
+  $('trace').innerHTML = ''; power = [];
+  const start = j.meta.start || (j.rows[0] && j.rows[0].t) || 0;
+  addRow({t: start, tool: `REPLAY ${run}`, cls: 'info', text: `case=${j.meta.case} verify=${j.meta.verify} ${j.meta.seconds}s（依原始時間重播）`});
+  j.rows.forEach(r => replayTimers.push(setTimeout(() => addRow(r), Math.max(0, (r.t - start) * 1000))));
+  j.power.forEach(p => replayTimers.push(setTimeout(() => { power.push(p); drawPower(); }, Math.max(0, (p.ts - start) * 1000))));
+}
+function stopReplay(){
+  replayTimers.forEach(clearTimeout); replayTimers = []; replaying = false; $('replay-badge').style.display = 'none';
+}
+connect(); loadBoard(); loadRuns(); loadCases(); drawPower();
+</script>
+</body>
+</html>
