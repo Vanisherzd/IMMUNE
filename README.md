@@ -296,6 +296,8 @@ python3 scripts/dashboard.py                 # http://127.0.0.1:8097/ (DASH_HOST
 DASH_ACTIONS=1 python3 scripts/dashboard.py  # also enables the inject, reset and WAN buttons
 ```
 
+Approvals and actions are accepted only with the token embedded in the served page (set `DASH_TOKEN` to fix it). The dashboard listens on 127.0.0.1 by default; set `DASH_HOST=0.0.0.0` only on an isolated network.
+
 ### Running in 32 GB of memory
 
 The full stack used about 46 GB on the prototype device. The plan for machines with 32 GB in total is in [`docs/memory-32gb.md`](docs/memory-32gb.md).

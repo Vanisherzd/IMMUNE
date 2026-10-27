@@ -296,6 +296,8 @@ python3 scripts/dashboard.py                 # http://127.0.0.1:8097/（DASH_HOS
 DASH_ACTIONS=1 python3 scripts/dashboard.py  # 另外開啟注入、重置與斷網按鈕
 ```
 
+審批與操作只接受帶有頁面內嵌權杖的請求（可用 `DASH_TOKEN` 固定）。操作台預設只聽 127.0.0.1；只有在隔離網路上才設 `DASH_HOST=0.0.0.0`。
+
 ### 在 32 GB 記憶體上執行
 
 原型設備上整套系統用了約 46 GB。總記憶體只有 32 GB 的機器怎麼配置，寫在 [`docs/memory-32gb.zh-TW.md`](docs/memory-32gb.zh-TW.md)。

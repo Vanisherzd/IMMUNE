@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dash-token" content="__DASH_TOKEN__">
 <title>IMMUNE</title>
 <style>
 :root{--bg:#0f1115;--panel:#181b22;--line:#2a2f3a;--text:#e6e8ec;--dim:#8b93a3;--ok:#2fbf71;--bad:#e5484d;--warn:#f5a524;--info:#4c8dff;--rej:#c36bff}
@@ -392,7 +393,7 @@ function loadBoard(){
 }
 
 async function post(url, body){
-  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Dash-Token': document.querySelector('meta[name=dash-token]').content}, body: JSON.stringify(body)});
   const j = await r.json().catch(() => ({}));
   $('msg').textContent = r.ok ? `✓ ${j.cmd || ''}` : `✗ ${j.error || j.out || r.status}`;
 }
