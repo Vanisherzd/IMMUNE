@@ -326,6 +326,6 @@ proposal/     competition deck (PDF)
 | Language and reranking models, agent runtime, guardrails | Inference, sandbox, guardrails | Each under its publisher's license |
 | Lucide icons, Simple Icons | Icons in the diagrams; product logos belong to their owners | ISC; CC0 |
 
-Knowledge corpora and indexes, raw public datasets, model weights and logs are not in this repository.
+Knowledge corpora and indexes, raw public datasets, model weights and logs are not in this repository. Evaluation answers never enter the retrieval index.
 
-The code and documents in this repository are released under the [MIT License](LICENSE). Third-party data, models and icons keep the licenses listed above. Evaluation answers never enter the retrieval index.
+The code and documents in this repository are released under the [MIT License](LICENSE). Third-party data, models and icons keep the licenses listed above.
