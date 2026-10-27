@@ -296,7 +296,7 @@ python3 scripts/dashboard.py                 # http://127.0.0.1:8097/ (DASH_HOST
 DASH_ACTIONS=1 python3 scripts/dashboard.py  # also enables the inject, reset and WAN buttons
 ```
 
-Approvals and actions are accepted only with the token embedded in the served page (set `DASH_TOKEN` to fix it). The dashboard listens on 127.0.0.1 by default; set `DASH_HOST=0.0.0.0` only on an isolated network.
+Approvals and actions need the token in the operator link printed at start-up (`http://127.0.0.1:8097/#token=...`); without it the page is view-only. Set `DASH_TOKEN` to keep the token stable. The dashboard listens on 127.0.0.1 by default; set `DASH_HOST=0.0.0.0` only on an isolated network.
 
 ### Running in 32 GB of memory
 

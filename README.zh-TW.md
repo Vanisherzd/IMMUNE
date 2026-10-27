@@ -296,7 +296,7 @@ python3 scripts/dashboard.py                 # http://127.0.0.1:8097/（DASH_HOS
 DASH_ACTIONS=1 python3 scripts/dashboard.py  # 另外開啟注入、重置與斷網按鈕
 ```
 
-審批與操作只接受帶有頁面內嵌權杖的請求（可用 `DASH_TOKEN` 固定）。操作台預設只聽 127.0.0.1；只有在隔離網路上才設 `DASH_HOST=0.0.0.0`。
+審批與操作需要啟動時印出的操作連結裡的權杖（`http://127.0.0.1:8097/#token=...`）；沒有權杖時頁面只能檢視。可用 `DASH_TOKEN` 固定權杖。操作台預設只聽 127.0.0.1；只有在隔離網路上才設 `DASH_HOST=0.0.0.0`。
 
 ### 在 32 GB 記憶體上執行
 

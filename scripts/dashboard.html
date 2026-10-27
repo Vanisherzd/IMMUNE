@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="dash-token" content="__DASH_TOKEN__">
 <title>IMMUNE</title>
 <style>
 :root{--bg:#0f1115;--panel:#181b22;--line:#2a2f3a;--text:#e6e8ec;--dim:#8b93a3;--ok:#2fbf71;--bad:#e5484d;--warn:#f5a524;--info:#4c8dff;--rej:#c36bff}
@@ -392,8 +391,19 @@ function loadBoard(){
   fetch('board/').then(r => { if (r.ok && (r.headers.get('Content-Type') || '').includes('html')){ $('board').src = 'board/'; $('board').style.display = 'block'; } }).catch(() => {});
 }
 
+// The approval/action token arrives once in the start-up link (#token=...) and stays in this tab only; the page itself
+// never contains it, so a viewer without the link can watch but not approve or act.
+(function(){ const m = location.hash.match(/token=([^&]+)/); if (!m) return;
+  try { sessionStorage.setItem('dashToken', decodeURIComponent(m[1])); } catch (e) {}
+  history.replaceState(null, '', location.pathname + location.search); })();
+function dashToken(){
+  let t = ''; try { t = sessionStorage.getItem('dashToken') || ''; } catch (e) {}
+  if (!t){ t = (prompt('輸入操作台權杖（啟動時印在終端機）') || '').trim(); try { if (t) sessionStorage.setItem('dashToken', t); } catch (e) {} }
+  return t;
+}
 async function post(url, body){
-  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Dash-Token': document.querySelector('meta[name=dash-token]').content}, body: JSON.stringify(body)});
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Dash-Token': dashToken()}, body: JSON.stringify(body)});
+  if (r.status === 401){ try { sessionStorage.removeItem('dashToken'); } catch (e) {} }
   const j = await r.json().catch(() => ({}));
   $('msg').textContent = r.ok ? `✓ ${j.cmd || ''}` : `✗ ${j.error || j.out || r.status}`;
 }

@@ -4,6 +4,7 @@ logs/ops-api.log and is safe to leave open beside a running drill.
 
   .venv/bin/python scripts/dashboard.py                    # http://127.0.0.1:8097/  (DASH_HOST, DASH_PORT)
   DASH_HOST=0.0.0.0 DASH_TOKEN=... .venv/bin/python scripts/dashboard.py   # serve the LAN; only on an isolated network
+  Start-up prints the operator link, http://HOST:PORT/#token=...; without the token the page is view-only.
   DASH_ACTIONS=1 .venv/bin/python scripts/dashboard.py     # enable the inject / reset / WAN buttons (stage only)
 
   GET  /                  the page (scripts/dashboard.html)
@@ -49,8 +50,9 @@ VLLM_METRICS = os.environ.get("VLLM_METRICS_URL", "http://127.0.0.1:8000/metrics
 HEALTH = [u.strip() for u in os.environ.get(
     "DASH_HEALTH", "http://127.0.0.1:8880/,http://127.0.0.1:8880/api/").split(",") if u.strip()]
 BOARD = os.environ.get("DASH_BOARD_URL", "http://127.0.0.1:8880/board/")
-# Mutating requests (approve/reject, inject/reset/WAN) must carry this token; the page gets it embedded when served,
-# so another site open in the operator's browser cannot press "approve" for them. Set DASH_TOKEN to keep it stable.
+# Mutating requests (approve/reject, inject/reset/WAN) must carry this token. It is never written into the page: it is
+# printed at start-up as a #token= link, and the page keeps it in sessionStorage. Anyone else who opens the page, or
+# another site in the operator's browser, can watch but cannot approve or act. Set DASH_TOKEN to keep it stable.
 TOKEN = os.environ.get("DASH_TOKEN") or secrets.token_urlsafe(32)
 # The only cross-origin reader is the victim's board page, and it reads /api/state only.
 BOARD_ORIGINS = {o.strip().rstrip("/") for o in os.environ.get(
@@ -635,7 +637,7 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         if u.path in ("/", "/index.html"):
-            return self._send(200, PAGE.read_bytes().replace(b"__DASH_TOKEN__", TOKEN.encode()), "text/html; charset=utf-8")
+            return self._send(200, PAGE.read_bytes(), "text/html; charset=utf-8")
         if u.path == "/api/state":
             return self._send(200, state(), cors=True)
         if u.path == "/api/cases":
@@ -696,7 +698,7 @@ class H(BaseHTTPRequestHandler):
         if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
             return self._send(415, {"error": "Content-Type must be application/json"})
         if not hmac.compare_digest((self.headers.get("X-Dash-Token") or "").encode(), TOKEN.encode()):
-            return self._send(403, {"error": "missing or wrong dashboard token"})
+            return self._send(401, {"error": "missing or wrong dashboard token (use the start-up link)"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         except ValueError:
@@ -714,6 +716,8 @@ def main():
         threading.Thread(target=_tegrastats_thread, daemon=True).start()
     host, port = os.environ.get("DASH_HOST", "127.0.0.1"), int(os.environ.get("DASH_PORT", "8097"))
     print(f"dashboard on http://{host}:{port}/  actions={'on' if ACTIONS else 'off'}  health={HEALTH}", flush=True)
+    link_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+    print(f"operator link (approvals and actions): http://{link_host}:{port}/#token={TOKEN}", flush=True)
     ThreadingHTTPServer((host, port), H).serve_forever()
 
 
