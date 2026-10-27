@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+.nemo-venv/
+logs/
+kb/artifacts/
+kb/src/immune_kb/data/
+.DS_Store

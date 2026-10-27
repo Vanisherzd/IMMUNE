@@ -1,0 +1,253 @@
+[
+  {
+    "id": "card-docker-recorded-upstream-pids-limit",
+    "title": "Upstream cannot fork: container PID limit survives restart",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "local-drill:upstream-pids-limit"
+    ],
+    "symptoms": [
+      "fork: Resource temporarily unavailable",
+      "pids.max pids.current",
+      "upstream-pids-limit",
+      "cannot fork"
+    ],
+    "root_causes": [
+      "The harness sets edge-victim-app PidsLimit=3. Kernel cgroup process limits can reject new tasks with EAGAIN; restarting retains container settings. Confirm this hypothesis with live evidence."
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_logs {\"name\":\"edge-victim-app\",\"tail\":60}",
+        "purpose": "Look for fork/EAGAIN, not OOM; also collect docker_ps and health."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"cat /sys/fs/cgroup/pids.max /sys/fs/cgroup/pids.current /sys/fs/cgroup/pids.events\"}",
+        "purpose": "cgroup v2: small limit/reached limit/max events. Exec may itself fail at the PID limit; failure alone proves no cause."
+      },
+      {
+        "level": "R",
+        "command": "search_runbooks {\"query\":\"upstream fork Resource temporarily unavailable pids limit\"}",
+        "purpose": "Correlate logs/limits; no files or no exec means escalate for operator inspect, not invent a value."
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "After confirmed PID exhaustion, docker_restart {\"name\":\"edge-victim-app\"} once, then check_health {}; restart preserves PidsLimit.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "If the same confirmed fault and /api/ failure persist after target restart, recreate_stack {\"name\":\"edge-victim-app\",\"replace\":true} from approved stateless definition; check_health {}.",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "OPERATOR ONLY alternative (not an agent tool): docker inspect --format \"{{.HostConfig.PidsLimit}}\" edge-victim-app; record the value, then docker update --pids-limit <approved-known-good-limit> edge-victim-app and docker restart edge-victim-app. Never guess a limit or remove limits globally.",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "For operator limit changes, record the previous and approved known-good limits before changing. If needed restore ONLY a previously healthy limit: docker update --pids-limit <saved-healthy-limit> edge-victim-app; docker restart edge-victim-app. Do not restore the injected limit 3.",
+      "Container replacement has no automatic undo of its old writable layer. Before replacement preserve required data/evidence; if the replacement regresses, stop and have the operator restore the approved deployment definition/backup."
+    ],
+    "verify": [
+      "check_health {}: require / = 200 AND /api/ = 200; otherwise unresolved, never infer success from a tool response.",
+      "docker_ps {}: target stays Up; repeat health after a short observation interval and inspect fresh target logs.",
+      "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"cat /sys/fs/cgroup/pids.max /sys/fs/cgroup/pids.current\"}: approved PID budget and spare capacity; no new fork errors."
+    ],
+    "safety": [
+      "These are failed or uncompleted experiments, not verified repair successes. TIMEOUT records lack final health; some FAIL records also show gateway/compaction errors. Knowledge deficiency is not established.",
+      "First call search_runbooks with the observed error. Confirm current evidence before any write. Fault labels from the injector are not current diagnostic evidence.",
+      "recreate_stack replace=true destroys one named container writable layer. Only this disposable demo stack; preserve required evidence/data with an operator first. Persistent/stateful services require a separate recovery plan.",
+      "Respect existing reviewer/approval checks. A refusal is not permission to bypass them. Do not restart unrelated healthy containers.",
+      "Recorded failed approach: repeated backend starts did not remove the PID limit. Rewriting/restarting a healthy frontend made one measured run worse (front/api both unreachable). Do not treat fork exhaustion as a frontend config or scratch-space fault.",
+      "Official reference (checked 2026-10-21): https://docs.kernel.org/admin-guide/cgroup-v2.html",
+      "Official reference (checked 2026-10-21): https://docs.docker.com/reference/cli/docker/container/update/",
+      "Official reference (checked 2026-10-21): https://docs.docker.com/reference/cli/docker/container/cp/"
+    ],
+    "escalate": [
+      "No reliable limit evidence, exec unavailable, reviewer refusal, or a gateway timeout without any tools: collect operator diagnostics; do not guess or loop."
+    ],
+    "tags": [
+      "fork",
+      "EAGAIN",
+      "pids.max",
+      "pids.current",
+      "pids-limit",
+      "upstream-pids-limit"
+    ]
+  },
+  {
+    "id": "card-docker-recorded-front-worker-connections",
+    "title": "Frontend worker_connections exhausted in image-owned nginx.conf",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "local-drill:front-worker-connections"
+    ],
+    "symptoms": [
+      "worker_connections are not enough",
+      "worker_connections 2",
+      "front-worker-connections"
+    ],
+    "root_causes": [
+      "The harness changes edge-victim /etc/nginx/nginx.conf worker_connections from 1024 to 2 in its writable layer. Connections include proxy upstream connections. Confirm the file and log evidence; this is separate from the host-mounted site config."
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_logs {\"name\":\"edge-victim\",\"tail\":60}",
+        "purpose": "Look for worker_connections are not enough and layer-change evidence for /etc/nginx/nginx.conf."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim\",\"cmd\":\"nginx -T\"}",
+        "purpose": "Read events.worker_connections and effective configuration. nginx -t alone can pass this semantic fault."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"curl -sS -m 3 http://127.0.0.1/\"}",
+        "purpose": "Confirm backend is healthy; collect docker_ps/health before changing frontend."
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "With confirmed front limit corruption and healthy backend, docker_restart {\"name\":\"edge-victim\"} once; then check_health {}.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "If still failing AND actual layer evidence shows altered /etc/nginx/nginx.conf outside conf.d, recreate_stack {\"name\":\"edge-victim\",\"replace\":true} under reviewer; check_health {}.",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "OPERATOR ONLY single-file recovery alternative: preserve the current nginx.conf with docker cp edge-victim:/etc/nginx/nginx.conf <approved-backup-file>; docker cp <validated-known-good-nginx.conf> edge-victim:/etc/nginx/nginx.conf; docker exec edge-victim nginx -t; only after validation, docker restart edge-victim. File must match this image/config layout.",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "For single-file recovery, restore the saved file ONLY if it was previously healthy: docker cp <saved-healthy-nginx.conf> edge-victim:/etc/nginx/nginx.conf; docker exec edge-victim nginx -t; docker restart edge-victim. Do not restore the injected worker_connections=2.",
+      "Replacement cannot undo its old writable layer automatically. Preserve needed data first; if the new container regresses, escalate with logs and restore the approved image/definition rather than repeating rebuilds."
+    ],
+    "verify": [
+      "check_health {}: require / = 200 AND /api/ = 200; otherwise unresolved, never infer success from a tool response.",
+      "docker_ps {}: target stays Up; repeat health after a short observation interval and inspect fresh target logs.",
+      "docker_exec {\"name\":\"edge-victim\",\"cmd\":\"nginx -T\"}: validated known-good events limit; fresh requests no longer log connections are not enough."
+    ],
+    "safety": [
+      "These are failed or uncompleted experiments, not verified repair successes. TIMEOUT records lack final health; some FAIL records also show gateway/compaction errors. Knowledge deficiency is not established.",
+      "First call search_runbooks with the observed error. Confirm current evidence before any write. Fault labels from the injector are not current diagnostic evidence.",
+      "recreate_stack replace=true destroys one named container writable layer. Only this disposable demo stack; preserve required evidence/data with an operator first. Persistent/stateful services require a separate recovery plan.",
+      "Respect existing reviewer/approval checks. A refusal is not permission to bypass them. Do not restart unrelated healthy containers.",
+      "Recorded failed approach: nginx -t succeeded despite worker_connections=2. restore_config changes frontend conf.d/default.conf, not nginx.conf events; network_repair reported already attached and did not restore health. Diagnose the main config instead of looping these tools.",
+      "docker_exec sed -i was denied because it is a write. Use the named recovery tools and their preconditions, or escalate for the single-file operator recovery; do not bypass the read-only tool.",
+      "Official reference (checked 2026-10-21): https://nginx.org/en/docs/ngx_core_module.html",
+      "Official reference (checked 2026-10-21): https://nginx.org/en/docs/switches.html",
+      "Official reference (checked 2026-10-21): https://docs.docker.com/engine/storage/",
+      "Official reference (checked 2026-10-21): https://docs.docker.com/reference/cli/docker/container/cp/"
+    ],
+    "escalate": [
+      "No layer-change evidence, sustained legitimate traffic, wrong image definition, or reviewer refusal: operator reviews capacity/rlimits; do not blindly raise limits."
+    ],
+    "tags": [
+      "worker_connections",
+      "connections are not enough",
+      "nginx.conf",
+      "front-worker-connections"
+    ]
+  },
+  {
+    "id": "card-docker-recorded-upstream-config-crash",
+    "title": "Backend Nginx syntax corruption; target its own config, not frontend",
+    "scenario": "crashloop",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "local-drill:upstream-config-crash"
+    ],
+    "symptoms": [
+      "upstream-config-crash",
+      "edge-victim-app nginx emerg",
+      "invalid parameter in /etc/nginx/conf.d/default.conf",
+      "unexpected end of file expecting semicolon",
+      "invalid parameter listen"
+    ],
+    "root_causes": [
+      "The harness removes a semicolon in edge-victim-app /etc/nginx/conf.d/default.conf. This is the backend writable layer, not edge-victim host-mounted config. Stopped containers cannot run docker_exec."
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_logs {\"name\":\"edge-victim-app\",\"tail\":60}",
+        "purpose": "Require backend nginx [emerg] with file/line; collect docker_ps and health."
+      },
+      {
+        "level": "R",
+        "command": "docker_ps {}",
+        "purpose": "Distinguish backend exited/restarting from healthy frontend; never rewrite frontend to fix backend syntax."
+      },
+      {
+        "level": "R",
+        "command": "search_runbooks {\"query\":\"edge-victim-app nginx emerg syntax default.conf backend exited\"}",
+        "purpose": "If running, docker_exec nginx -t on edge-victim-app; read_config/restore_config target frontend only."
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "For confirmed backend syntax crash, docker_start {\"name\":\"edge-victim-app\"} if stopped (docker_restart if running); collect fresh backend logs and check_health {}.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "If backend still has the same own-layer syntax failure after target start/restart and /api/ fails, recreate_stack {\"name\":\"edge-victim-app\",\"replace\":true} under reviewer; check_health {}.",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "OPERATOR ONLY single-file recovery alternative, after saving a copy: docker cp edge-victim-app:/etc/nginx/conf.d/default.conf <approved-backup-file>; docker cp <validated-backend-default.conf> edge-victim-app:/etc/nginx/conf.d/default.conf; docker start edge-victim-app. Once running, docker exec edge-victim-app nginx -t and check both health URLs. Never copy the frontend site config into the backend.",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "If operator single-file recovery regresses, restore ONLY a saved known-good backend file: docker cp <saved-healthy-backend-default.conf> edge-victim-app:/etc/nginx/conf.d/default.conf; docker restart edge-victim-app. Do not restore the injected invalid file.",
+      "Replacement has no automatic writable-layer undo. Preserve required state first; if it fails, escalate with the backend logs and restore the approved backend definition/backup. If a frontend was changed in this incident, separately use restore_config {\"source\":\"previous\"} only when that saved frontend config was confirmed healthy, then docker_restart {\"name\":\"edge-victim\"} and check_health."
+    ],
+    "verify": [
+      "check_health {}: require / = 200 AND /api/ = 200; otherwise unresolved, never infer success from a tool response.",
+      "docker_ps {}: target stays Up; repeat health after a short observation interval and inspect fresh target logs.",
+      "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"nginx -t\"}: succeeds once backend runs; fresh backend logs contain no syntax emerg."
+    ],
+    "safety": [
+      "These are failed or uncompleted experiments, not verified repair successes. TIMEOUT records lack final health; some FAIL records also show gateway/compaction errors. Knowledge deficiency is not established.",
+      "First call search_runbooks with the observed error. Confirm current evidence before any write. Fault labels from the injector are not current diagnostic evidence.",
+      "recreate_stack replace=true destroys one named container writable layer. Only this disposable demo stack; preserve required evidence/data with an operator first. Persistent/stateful services require a separate recovery plan.",
+      "Respect existing reviewer/approval checks. A refusal is not permission to bypass them. Do not restart unrelated healthy containers.",
+      "Recorded failed approach: cat via docker_exec cannot run in a stopped backend. Use docker_logs for its startup syntax error. read_config/write_config target the frontend, not the backend file at the same pathname.",
+      "One run requested recreate_stack too early and was denied, then docker_start still exited with the same fault. After the required target start/restart and fresh failing health evidence, re-evaluate the approved rebuild path instead of repeating start or abandoned exec calls.",
+      "Official reference (checked 2026-10-21): https://nginx.org/en/docs/switches.html",
+      "Official reference (checked 2026-10-21): https://docs.docker.com/engine/storage/",
+      "Official reference (checked 2026-10-21): https://docs.docker.com/reference/cli/docker/container/cp/",
+      "Short syntax-error aliases are hypotheses, not proof of backend ownership. If frontend is the failing container, use its mounted-config runbook; do not mutate the backend unless backend logs confirm its own syntax crash."
+    ],
+    "escalate": [
+      "Persistent state, unavailable known-good definition, ambiguous target/file, or reviewer refusal: preserve evidence and ask operator; do not rewrite healthy frontend."
+    ],
+    "tags": [
+      "upstream-config-crash",
+      "edge-victim-app",
+      "nginx emerg",
+      "syntax",
+      "semicolon",
+      "default.conf"
+    ]
+  }
+]

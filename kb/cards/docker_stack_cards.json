@@ -1,0 +1,1085 @@
+[
+  {
+    "id": "card-docker-container-killed-signal",
+    "title": "Container killed by a signal, not by memory (exit 137 without OOM)",
+    "scenario": "crashloop",
+    "platform": "docker",
+    "risk_tier": 1,
+    "fault_types": [
+      "pod kill",
+      "pod failure",
+      "podCrashLoop",
+      "nodeDown",
+      "chaos",
+      "replicaScaleDown",
+      "deployment_zero_replicas"
+    ],
+    "symptoms": [
+      "killed by signal",
+      "sigkill exit",
+      "container killed sigkill",
+      "back-off restarting",
+      "crashloopbackoff restarts",
+      "reason crashloopbackoff"
+    ],
+    "root_causes": [
+      "an operator, script or chaos tool sent SIGKILL",
+      "the host stopped the container during maintenance",
+      "a supervisor scaled the service to zero"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_ps",
+        "purpose": "Exited (137) with 'OOMKilled: no' is an outside kill; 'OOMKilled: yes' is the memory card instead"
+      },
+      {
+        "level": "R",
+        "command": "docker_logs <container>",
+        "purpose": "a clean log that just stops, with no error before it, fits an outside kill"
+      },
+      {
+        "level": "R",
+        "command": "journal_tail docker",
+        "purpose": "look for a kill or stop request at that time"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "docker_start <container> (it was stopped, not broken)",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "if it does not stay up, read its logs again and follow the card for what they show",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "docker_start is idempotent; nothing to roll back"
+    ],
+    "verify": [
+      "check_health returns 200 on both URLs",
+      "docker_ps shows the container Up for more than a few seconds"
+    ],
+    "safety": [
+      "do not report this as an OOM kill unless docker_ps says OOMKilled: yes",
+      "do not recreate a container that only needs starting"
+    ],
+    "escalate": [
+      "it is killed again within minutes: something keeps killing it, find out what before restarting again"
+    ],
+    "tags": [
+      "exit 137",
+      "SIGKILL",
+      "killed",
+      "OOMKilled no",
+      "pod kill",
+      "pod failure"
+    ]
+  },
+  {
+    "id": "card-docker-container-oom",
+    "title": "Container killed for exceeding its memory limit (OOMKilled)",
+    "scenario": "crashloop",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "mem",
+      "memory stress",
+      "container_memory_limit_too_low",
+      "code_memory_leak",
+      "jvm_heap_stress",
+      "memory_stress",
+      "memory_capacity_mismatch",
+      "resourceLimitMisconfig"
+    ],
+    "symptoms": [
+      "oomkilled yes",
+      "oom killed",
+      "out of memory killed",
+      "memory limit exceeded",
+      "memory leak",
+      "exit 137 oomkilled",
+      "reason oomkilled"
+    ],
+    "root_causes": [
+      "the container's memory limit is below its working set",
+      "a memory leak grows until the limit",
+      "a burst of load"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_ps",
+        "purpose": "'OOMKilled: yes' and the memory limit confirm a limit kill"
+      },
+      {
+        "level": "R",
+        "command": "docker_logs <container>",
+        "purpose": "what it was doing before it died"
+      },
+      {
+        "level": "R",
+        "command": "top_processes",
+        "purpose": "rule out host-wide memory pressure (that is the host memory card)"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "docker_start or docker_restart <container> to restore service now",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "killed again right away: the limit was changed away from the stack definition, so recreate_stack <container> replace=true restores the defined limit",
+        "approval_required": true
+      }
+    ],
+    "rollback": [
+      "recreate_stack recreates from the definition; the previous container's state is lost, so use it only for a changed definition"
+    ],
+    "verify": [
+      "check_health 200 on both URLs",
+      "docker_ps shows Up and OOMKilled no after several minutes"
+    ],
+    "safety": [
+      "no tool raises a memory limit: if the defined limit is too small, report that and escalate"
+    ],
+    "escalate": [
+      "OOM kills recur with the defined limit: the limit or the application's memory use needs a human decision"
+    ],
+    "tags": [
+      "OOMKilled",
+      "out of memory",
+      "exit 137",
+      "memory limit",
+      "leak"
+    ]
+  },
+  {
+    "id": "card-docker-host-memory-pressure",
+    "title": "Host memory pressure from a runaway process",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "node memory stress",
+      "memoryPressure",
+      "nodeMemoryOOM",
+      "fullGC",
+      "jvm gc"
+    ],
+    "symptoms": [
+      "node memory stress",
+      "swap thrashing",
+      "host out of memory"
+    ],
+    "root_causes": [
+      "a host process grew without bound",
+      "a stress or batch job left running"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "top_processes",
+        "purpose": "find the process holding the memory and its owner"
+      },
+      {
+        "level": "R",
+        "command": "docker_ps",
+        "purpose": "whether the stack's containers were killed or are still Up"
+      },
+      {
+        "level": "R",
+        "command": "journal_tail docker",
+        "purpose": "kernel OOM messages naming a victim"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "D",
+        "action": "kill_process <pid> only for a runaway process owned by this user and not part of the platform",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "docker_start any stack container the pressure killed",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "a killed process is not restored: name it in the report so its owner can restart it"
+    ],
+    "verify": [
+      "top_processes no longer shows the runaway",
+      "check_health 200 on both URLs"
+    ],
+    "safety": [
+      "never kill the inference server, the gateway, docker or another user's process"
+    ],
+    "escalate": [
+      "the process belongs to someone else or to the platform"
+    ],
+    "tags": [
+      "memory pressure",
+      "RSS",
+      "runaway process",
+      "host memory"
+    ]
+  },
+  {
+    "id": "card-docker-cpu-saturation",
+    "title": "CPU saturation slows or times out requests (busy loop, stress, overload)",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "cpu",
+      "cpu stress",
+      "node cpu stress",
+      "nodeCpuHigh",
+      "cpuFullLoad",
+      "cpuDeadLoop",
+      "code_busy_loop",
+      "pod_cpu_overload",
+      "jvm cpu",
+      "cpu_capacity_mismatch"
+    ],
+    "symptoms": [
+      "cpu busy",
+      "busy loop",
+      "load average high",
+      "cpu stress process"
+    ],
+    "root_causes": [
+      "a process spinning in a loop",
+      "a stress tool left running",
+      "more load than the CPU allotment"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "top_processes",
+        "purpose": "which process holds the CPU, and whether it is inside a stack container or on the host"
+      },
+      {
+        "level": "R",
+        "command": "docker_exec <container> ps",
+        "purpose": "a process inside the container that should not be there"
+      },
+      {
+        "level": "R",
+        "command": "http_check <url>",
+        "purpose": "is the service slow (latency) rather than failing (status)"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "docker_restart <container> when the spinning process runs inside it",
+        "approval_required": false
+      },
+      {
+        "level": "D",
+        "action": "kill_process <pid> for a runaway host process owned by this user",
+        "approval_required": true
+      }
+    ],
+    "rollback": [
+      "a restart loses only in-memory state; a killed host process must be restarted by its owner"
+    ],
+    "verify": [
+      "top_processes shows the CPU back to normal",
+      "http_check latency back to normal and check_health 200"
+    ],
+    "safety": [
+      "never kill platform processes (inference server, gateway, docker)"
+    ],
+    "escalate": [
+      "the load is legitimate traffic: more capacity is a human decision"
+    ],
+    "tags": [
+      "CPU",
+      "busy loop",
+      "stress",
+      "load average",
+      "saturation"
+    ]
+  },
+  {
+    "id": "card-docker-network-latency-loss",
+    "title": "Network delay, packet loss or corruption between front end and upstream",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 1,
+    "fault_types": [
+      "delay",
+      "loss",
+      "network delay",
+      "network loss",
+      "network corrupt",
+      "pod_network_delay",
+      "node_network_delay",
+      "node_network_packet_loss",
+      "socket",
+      "dbNetworkLatency"
+    ],
+    "symptoms": [
+      "packet loss",
+      "network corrupt",
+      "intermittent timeouts upstream",
+      "upstream timed out intermittently"
+    ],
+    "root_causes": [
+      "traffic shaping (tc netem) added to a container's interface",
+      "a congested or faulty link",
+      "socket exhaustion"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "http_check <front url> several times",
+        "purpose": "intermittent or slow answers rather than a constant error"
+      },
+      {
+        "level": "R",
+        "command": "docker_exec <front> curl -s -o /dev/null -w '%{http_code} %{time_total}' http://<upstream>/",
+        "purpose": "time the hop between the containers directly"
+      },
+      {
+        "level": "R",
+        "command": "docker_logs <front>",
+        "purpose": "'upstream timed out (110' mixed with successes"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "docker_restart <the slow container>: it starts with a fresh network namespace, which drops shaping rules attached inside it",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "if the hop still fails, network_repair to reattach both containers to the stack network",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "restart and network_repair are safe to repeat"
+    ],
+    "verify": [
+      "the direct curl between containers is fast and 200 several times in a row",
+      "check_health 200"
+    ],
+    "safety": [
+      "no tool changes host routing or firewall rules"
+    ],
+    "escalate": [
+      "the delay persists after a restart of both containers: it is on the host or the physical network"
+    ],
+    "tags": [
+      "latency",
+      "packet loss",
+      "netem",
+      "timeout",
+      "network delay"
+    ]
+  },
+  {
+    "id": "card-docker-name-resolution-partition",
+    "title": "Front end cannot resolve or reach the upstream (DNS failure, network partition)",
+    "scenario": "dns",
+    "platform": "docker",
+    "risk_tier": 1,
+    "fault_types": [
+      "dns error",
+      "service_dns_resolution_failure",
+      "dnsResolutionFailure",
+      "network_partition",
+      "networkPolicyIsolation",
+      "misconfigured-network-policy",
+      "image_registry_dns_failure"
+    ],
+    "symptoms": [
+      "host not found in upstream",
+      "could not be resolved",
+      "network partition",
+      "network policy isolation"
+    ],
+    "root_causes": [
+      "a container left the shared network",
+      "the network itself was removed",
+      "the upstream was renamed or removed so its name no longer resolves"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_ps",
+        "purpose": "is the upstream container present and Up under its expected name"
+      },
+      {
+        "level": "R",
+        "command": "docker_logs <front>",
+        "purpose": "'host not found' or 'could not be resolved' names the upstream it looks for"
+      },
+      {
+        "level": "R",
+        "command": "read_config",
+        "purpose": "the name in proxy_pass is the name the upstream should have"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "network_repair when both containers exist but cannot reach each other",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "recreate_stack <upstream> when the expected container no longer exists under its name",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "restore_config then docker_restart <front> when the config names the wrong host",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "restore_config source=previous undoes a config restore"
+    ],
+    "verify": [
+      "docker_logs <front> shows no resolve errors after restart",
+      "check_health 200 on both URLs"
+    ],
+    "safety": [
+      "do not rename containers by hand; recreate from the definition"
+    ],
+    "escalate": [
+      "the host's own DNS fails (http_check to other names fails too)"
+    ],
+    "tags": [
+      "DNS",
+      "resolve",
+      "host not found",
+      "network",
+      "partition"
+    ]
+  },
+  {
+    "id": "card-docker-port-mismatch",
+    "title": "Front end and upstream disagree on the port (connection refused to upstream)",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 1,
+    "fault_types": [
+      "target port misconfig",
+      "service_port_mapping_mismatch",
+      "mysql_invalid_port",
+      "liveness_probe_incorrect_port",
+      "readiness_probe_incorrect_port",
+      "service_sidecar_port_conflict",
+      "service_protocol_mismatch"
+    ],
+    "symptoms": [
+      "connect failed 111 connection refused while connecting to upstream",
+      "target port misconfig",
+      "port mismatch",
+      "wrong port"
+    ],
+    "root_causes": [
+      "the front end's proxy_pass names a port the upstream does not listen on",
+      "the upstream's own config was changed to listen elsewhere"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "read_config",
+        "purpose": "the port in proxy_pass"
+      },
+      {
+        "level": "R",
+        "command": "docker_exec <upstream> grep -r listen /etc/nginx/conf.d",
+        "purpose": "the port the upstream actually listens on"
+      },
+      {
+        "level": "R",
+        "command": "docker_exec <front> curl -s -o /dev/null -w '%{http_code}' http://<upstream>:<port>/",
+        "purpose": "which port answers"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "front end changed: restore_config then docker_restart <front>",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "upstream changed inside its container: docker_restart <upstream>, then if still refused recreate_stack <upstream> replace=true to restore its defined config",
+        "approval_required": true
+      }
+    ],
+    "rollback": [
+      "restore_config source=previous; a replaced upstream comes from its definition, which is the known-good state"
+    ],
+    "verify": [
+      "check_health 200 on /api/",
+      "no 'connection refused' in the front end's log after the fix"
+    ],
+    "safety": [
+      "change the side that drifted from the definition, not the side that is still correct"
+    ],
+    "escalate": [
+      "neither side matches the definition: ask which port is intended"
+    ],
+    "tags": [
+      "port",
+      "listen",
+      "proxy_pass",
+      "connection refused",
+      "111"
+    ]
+  },
+  {
+    "id": "card-docker-misrouted-request",
+    "title": "Requests routed to the wrong upstream or path (404 or wrong answer on /api/)",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 1,
+    "fault_types": [
+      "gateway_misrouted",
+      "service_selector_mismatch",
+      "service_env_var_address_mismatch",
+      "environment_variable_misconfiguration"
+    ],
+    "symptoms": [
+      "gateway misrouted",
+      "wrong upstream",
+      "routed to wrong service",
+      "unexpected response body"
+    ],
+    "root_causes": [
+      "proxy_pass points at the wrong host or path",
+      "an environment or config value names the wrong address"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "check_health",
+        "purpose": "/ fine while /api/ answers 404 or the wrong content"
+      },
+      {
+        "level": "R",
+        "command": "read_config",
+        "purpose": "compare proxy_pass host and path with the intended upstream"
+      },
+      {
+        "level": "R",
+        "command": "docker_exec <front> curl -s http://<upstream>/",
+        "purpose": "the upstream answers correctly when asked directly"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "restore_config then docker_restart <front>",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "restore_config source=previous"
+    ],
+    "verify": [
+      "check_health 200 on /api/ with the expected body"
+    ],
+    "safety": [
+      "do not write a guessed config when a known-good one exists"
+    ],
+    "escalate": [
+      "no known-good config and the intended route is unclear"
+    ],
+    "tags": [
+      "404",
+      "proxy_pass",
+      "misrouted",
+      "path",
+      "routing"
+    ]
+  },
+  {
+    "id": "card-docker-upstream-content-4xx",
+    "title": "Upstream answers 403 or 404 itself (content missing, permission denied)",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "volume_mount_permission_denied",
+      "pvc_access_mode_mismatch",
+      "pv_binding_occupied"
+    ],
+    "symptoms": [
+      "403 forbidden upstream",
+      "api 403 forbidden",
+      "directory index of is forbidden",
+      "open failed no such file or directory",
+      "missing index",
+      "Permission denied edge-victim-app",
+      "Permission denied while reading static file",
+      "403 forbidden nginx edge-victim-app",
+      "directory index forbidden"
+    ],
+    "root_causes": [
+      "the upstream's served files were deleted or replaced",
+      "file permissions changed",
+      "a volume with the content is not mounted"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_logs {\"name\":\"edge-victim-app\",\"tail\":60}",
+        "purpose": "Confirm backend 403/404 and exact missing/permission-denied content path; not a frontend routing error."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"ls -l /usr/share/nginx/html/index.html\"}",
+        "purpose": "Missing file differs from present but mode 000; compare with approved image baseline."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"cat /etc/nginx/conf.d/default.conf\"}",
+        "purpose": "Confirm backend document root/index; wrong /api path in frontend is a different case."
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "For confirmed damaged backend image content, docker_restart {\"name\":\"edge-victim-app\"} once; check_health {}.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "If same missing/unreadable image content and 403/404 persist after restart, recreate_stack {\"name\":\"edge-victim-app\",\"replace\":true} under reviewer; check_health {}.",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "OPERATOR ONLY alternative: docker cp <approved-index.html> edge-victim-app:/usr/share/nginx/html/index.html. For mode-only corruption restore the recorded original mode on this one file; never chmod -R or 777.",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "Preserve any previous known-good content and mode first. Restore only the approved original single file/mode if repair regresses; never restore the injected missing file or mode 000. Replacement has no automatic writable-layer undo."
+    ],
+    "verify": [
+      "check_health {}: / and /api/ both 200, then repeat after a short observation interval; a tool success alone is not recovery.",
+      "docker_ps {}: target stays Up; inspect fresh logs for the original error."
+    ],
+    "safety": [
+      "docker_restart does not bring deleted files back: do not repeat it",
+      "Recorded failure labels are not live proof. Confirm the target and mechanism before any write; search_runbooks first.",
+      "This repair card is for the two disposable demo containers. Container replacement loses its writable layer: preserve required evidence/state first; never apply blindly to a persistent service.",
+      "Follow existing restart, post-restart failing-health and reviewer preconditions. A refusal is not permission to bypass the gate.",
+      "No bulk file/directory deletion, recursive cleanup or arbitrary host process killing. Historical failed actions in case metadata are not repair instructions.",
+      "The proposed fixes have not yet been validated by this new replay; FAIL and TIMEOUT records never become proven_here successes.",
+      "Official reference: https://nginx.org/en/docs/http/ngx_http_index_module.html",
+      "Official reference: https://nginx.org/en/docs/http/ngx_http_autoindex_module.html",
+      "Official reference: https://docs.docker.com/engine/storage/"
+    ],
+    "escalate": [
+      "the content lives on a volume that is missing: restoring data is a human decision"
+    ],
+    "tags": [
+      "403",
+      "404",
+      "forbidden",
+      "permission denied",
+      "index"
+    ]
+  },
+  {
+    "id": "card-docker-app-5xx-defect",
+    "title": "Upstream returns 5xx from an application error (exception, code defect)",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "code error",
+      "code_wrong_return",
+      "code_missing_parameter",
+      "code_wrong_argument_order",
+      "nullPointerException",
+      "jvm exception",
+      "httpError5xx",
+      "codeDefect",
+      "f1",
+      "f2",
+      "f3",
+      "f4",
+      "f5",
+      "custom(flagd)"
+    ],
+    "symptoms": [
+      "500 internal server error upstream",
+      "nullpointerexception stack trace"
+    ],
+    "root_causes": [
+      "a code defect on one request path",
+      "corrupted runtime state",
+      "a bad feature flag or config value"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "check_health",
+        "purpose": "/api/ 500 or 503 while the container is Up"
+      },
+      {
+        "level": "R",
+        "command": "docker_logs <upstream>",
+        "purpose": "the exception or error line and which request triggers it"
+      },
+      {
+        "level": "R",
+        "command": "docker_exec <upstream> nginx -t",
+        "purpose": "a broken config inside the upstream also yields 500s"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "docker_restart <upstream> once, for state that a restart clears",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "if the 5xx survives the restart, recreate_stack <upstream> replace=true restores its defined state",
+        "approval_required": true
+      }
+    ],
+    "rollback": [
+      "recreate restores the definition; a code defect in the definition itself is not fixed by any tool"
+    ],
+    "verify": [
+      "check_health 200 on /api/",
+      "no new error lines in docker_logs"
+    ],
+    "safety": [
+      "no tool edits application code: a defect in the image must be escalated with the log lines"
+    ],
+    "escalate": [
+      "the error survives a recreate: report the failing request and the exception text"
+    ],
+    "tags": [
+      "500",
+      "503",
+      "exception",
+      "stack trace",
+      "defect"
+    ]
+  },
+  {
+    "id": "card-docker-slow-dependency",
+    "title": "Slow responses from an exhausted or slow dependency (pool, threads, GC, rate limit)",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "jvm latency",
+      "slowSQL",
+      "db_connection_exhaustion",
+      "threadExhaustion",
+      "code_artificial_delay",
+      "cacheBreakdown",
+      "redisUnavailable",
+      "trafficSurge",
+      "trafficHotspot",
+      "rateLimiting",
+      "db_readonly_mode"
+    ],
+    "symptoms": [
+      "connection pool exhausted",
+      "thread pool exhausted",
+      "too many requests 429",
+      "slow sql",
+      "traffic surge"
+    ],
+    "root_causes": [
+      "connections or threads leaked until the pool is empty",
+      "a dependency is slow or down",
+      "more traffic than the service sustains"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "http_check <url>",
+        "purpose": "slow but successful, or 429/503 under load"
+      },
+      {
+        "level": "R",
+        "command": "docker_logs <container>",
+        "purpose": "pool, timeout or rate-limit messages and when they began"
+      },
+      {
+        "level": "R",
+        "command": "top_processes",
+        "purpose": "rule out CPU saturation (the CPU card)"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "docker_restart <container> to release leaked connections or threads (temporary relief)",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "a restart only drops in-flight requests"
+    ],
+    "verify": [
+      "http_check latency normal over several calls",
+      "check_health 200"
+    ],
+    "safety": [
+      "no tool scales services or changes limits"
+    ],
+    "escalate": [
+      "the slowness returns after a restart, or comes from traffic volume: capacity and code are human decisions"
+    ],
+    "tags": [
+      "latency",
+      "pool",
+      "threads",
+      "429",
+      "rate limit"
+    ]
+  },
+  {
+    "id": "card-docker-disk-io",
+    "title": "Disk filling or I/O errors from heavy writes (stack-mapped)",
+    "scenario": "disk_full",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "disk",
+      "node disk fill",
+      "io fault",
+      "diskIOHigh",
+      "code_excessive_file_writes",
+      "code_excessive_file_reads",
+      "namespace_storage_quota_exceeded",
+      "pvc_capacity_mismatch"
+    ],
+    "symptoms": [
+      "no space left on device",
+      "input output error",
+      "read-only file system",
+      "inode exhaustion",
+      "inodes exhausted",
+      "no free inodes",
+      "out of inodes",
+      "node disk fill"
+    ],
+    "root_causes": [
+      "a process writing without bound",
+      "the stack's scratch volume full of temp files",
+      "the host filesystem full of old output"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "disk_usage",
+        "purpose": "which filesystem is full: the scratch volume, the host root, or docker"
+      },
+      {
+        "level": "R",
+        "command": "docker_exec <container> df",
+        "purpose": "the view from inside the failing container"
+      },
+      {
+        "level": "R",
+        "command": "top_processes",
+        "purpose": "a process still writing"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "D",
+        "action": "clear_scratch_volume when the stack's scratch volume is the full one",
+        "approval_required": true
+      },
+      {
+        "level": "D",
+        "action": "cleanup_disk when the host is full of this project's old output",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "docker_start or docker_restart the container that failed on the full disk",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "deleted temp files are not restored; only allowlisted disposable files are removed"
+    ],
+    "verify": [
+      "disk_usage shows free space",
+      "check_health 200"
+    ],
+    "safety": [
+      "never delete images, volumes, records or other users' data"
+    ],
+    "escalate": [
+      "the space is held by data that is not disposable"
+    ],
+    "tags": [
+      "disk full",
+      "No space left on device",
+      "I/O error",
+      "scratch",
+      "writes"
+    ]
+  },
+  {
+    "id": "card-docker-missing-config-reference",
+    "title": "Config references a file, secret or credential that is missing",
+    "scenario": "crashloop",
+    "platform": "docker",
+    "risk_tier": 1,
+    "fault_types": [
+      "missing_secret_binding",
+      "mysql_invalid_credentials",
+      "missing_image_pull_secret",
+      "missing_service_account"
+    ],
+    "symptoms": [
+      "no such file or directory in nginx conf",
+      "missing secret",
+      "invalid credentials",
+      "authentication failed credentials",
+      "emerg open failed"
+    ],
+    "root_causes": [
+      "an include, certificate or credential file was removed",
+      "the config was edited to reference a file that does not exist"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_logs <front>",
+        "purpose": "'[emerg] open() \"<file>\" failed (2: No such file or directory)' names the missing reference"
+      },
+      {
+        "level": "R",
+        "command": "read_config",
+        "purpose": "the include or path the error names"
+      },
+      {
+        "level": "R",
+        "command": "docker_exec <front> nginx -t",
+        "purpose": "confirm the config test fails on that reference (only if the container is Up)"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "restore_config then docker_restart <front>",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "restore_config source=previous"
+    ],
+    "verify": [
+      "the container stays Up",
+      "check_health 200"
+    ],
+    "safety": [
+      "never write secret values into a config or a report"
+    ],
+    "escalate": [
+      "the missing file is a credential that only its owner can provide"
+    ],
+    "tags": [
+      "include",
+      "missing file",
+      "secret",
+      "credentials",
+      "emerg"
+    ]
+  },
+  {
+    "id": "card-kubernetes-only-faults",
+    "title": "Kubernetes scheduling and control-plane faults (no equivalent on this Docker stack)",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 0,
+    "fault_types": [
+      "node_selector_mismatch",
+      "taint_toleration_mismatch",
+      "node_affinity_mismatch",
+      "pod_anti_affinity_conflict",
+      "node_cordon_mismatch",
+      "kube_scheduler_unavailable",
+      "kubelet_unavailable",
+      "kube_proxy_unavailable",
+      "containerd_unavailable",
+      "namespace_pod_quota_exceeded",
+      "namespace_cpu_quota_exceeded",
+      "namespace_memory_quota_exceeded",
+      "namespace_service_quota_exceeded",
+      "resource_quota_enforcement",
+      "pvc_selector_mismatch",
+      "pvc_storage_class_mismatch",
+      "incorrect_image_reference",
+      "liveness_probe_incorrect_protocol",
+      "liveness_probe_incorrect_timing",
+      "readiness_probe_incorrect_protocol",
+      "invalid-node-selector"
+    ],
+    "symptoms": [
+      "pod pending failedscheduling",
+      "imagepullbackoff image",
+      "quota exceeded",
+      "taint toleration",
+      "node affinity mismatch"
+    ],
+    "root_causes": [
+      "Kubernetes scheduler, quota, probe or image settings"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_ps",
+        "purpose": "this stack has no scheduler: find what docker itself reports instead"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "R",
+        "action": "none on this stack: diagnose with docker_ps and docker_logs and follow the card for what they show",
+        "approval_required": false
+      }
+    ],
+    "rollback": [],
+    "verify": [
+      "check_health 200"
+    ],
+    "safety": [
+      "do not map a Kubernetes fix onto this stack by analogy without evidence"
+    ],
+    "escalate": [
+      "the incident is on a Kubernetes cluster: no tool here reaches it"
+    ],
+    "tags": [
+      "kubernetes",
+      "scheduler",
+      "quota",
+      "probe",
+      "image pull"
+    ]
+  }
+]

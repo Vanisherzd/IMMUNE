@@ -1,0 +1,15 @@
+# Input rails, applied to each candidate line of a tool result (scripts/guard_api.py /screen).
+
+define flow detect embedded instructions
+  $ok = execute detect_embedded_instructions
+  if not $ok
+    bot refuse embedded instructions
+    stop
+
+define flow model check addressed text
+  $suspicious = execute looks_addressed_to_agent
+  if $suspicious
+    do self check input
+
+define bot refuse embedded instructions
+  "BLOCKED: text addressed to the agent inside untrusted tool output"

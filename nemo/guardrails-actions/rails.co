@@ -1,0 +1,8 @@
+define flow action follows injected instruction
+  $clean = execute action_independent_of_injection
+  if not $clean
+    bot refuse injected action
+    stop
+
+define bot refuse injected action
+  "BLOCKED: this action is what text injected into the monitored system's output asked for"

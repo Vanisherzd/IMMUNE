@@ -1,0 +1,78 @@
+[
+  {
+    "id": "solution-k8s-crashloop-invalid-command",
+    "title": "CrashLoopBackOff caused by invalid command, args, or image",
+    "scenario": "crashloop",
+    "platform": "kubernetes",
+    "risk_tier": 2,
+    "symptoms": [
+      "CrashLoopBackOff",
+      "executable file not found",
+      "exec permission denied",
+      "exit code 126 or 127"
+    ],
+    "root_causes": [
+      "invalid container command",
+      "bad args",
+      "wrong image tag",
+      "binary missing or not executable"
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "kubectl logs <pod> -n <ns> -c <container> --previous",
+        "purpose": "capture startup error"
+      },
+      {
+        "level": "R",
+        "command": "kubectl get pod <pod> -n <ns> -o yaml",
+        "purpose": "inspect resolved image, command and args"
+      },
+      {
+        "level": "R",
+        "command": "kubectl rollout history deployment/<name> -n <ns>",
+        "purpose": "compare failing revision with last healthy revision"
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "correct image, command or args in source manifest and apply reviewed change",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "roll back to last healthy Deployment revision for rapid recovery",
+        "approval_required": true
+      }
+    ],
+    "rollback": [
+      "kubectl rollout undo deployment/<name> -n <ns> --to-revision=<known-good>"
+    ],
+    "verify": [
+      "rollout status succeeds",
+      "pod remains Ready",
+      "previous-log startup error absent",
+      "service health check passes"
+    ],
+    "safety": [
+      "record current revision before change",
+      "never substitute an unverified mutable image tag"
+    ],
+    "tags": [
+      "CrashLoopBackOff",
+      "invalid command",
+      "exit 126",
+      "exit 127",
+      "image",
+      "args"
+    ],
+    "source": "Kubernetes pod debugging documentation; ITBench Scenario-105 pattern",
+    "fault_types": [
+      "override:solution-k8s-crashloop-invalid-command"
+    ],
+    "escalate": [
+      "the failing image or its entrypoint is not one you build or can pin: hand the pod spec and the previous-container log to the image owner"
+    ]
+  }
+]

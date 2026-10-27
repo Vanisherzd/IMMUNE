@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "immune-kb"
+version = "0.3.0"
+description = "Offline incident case and remediation knowledge base for IMMUNE"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+telemetry = ["pyarrow>=25,<26"]
+
+[project.scripts]
+immune-kb = "immune_kb.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+immune_kb = ["data/*.json", "data/*.jsonl", "data/*.sqlite"]

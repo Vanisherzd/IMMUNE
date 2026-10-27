@@ -1,0 +1,7 @@
+# Tool-input rail: a state-changing call is checked against the instructions the output rails removed in this
+# incident. Deterministic (no model call); the decision is made by the flow in rails.co with actions.py.
+models: []
+rails:
+  input:
+    flows:
+      - action follows injected instruction

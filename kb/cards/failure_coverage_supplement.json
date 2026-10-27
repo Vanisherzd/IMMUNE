@@ -1,0 +1,312 @@
+[
+  {
+    "id": "card-docker-front-image-file-missing",
+    "title": "Frontend image-owned mime.types missing; site restore cannot repair it",
+    "scenario": "crashloop",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "local-drill:front-mime-missing"
+    ],
+    "symptoms": [
+      "mime.types",
+      "missing mime.types",
+      "nginx mime types missing"
+    ],
+    "root_causes": [
+      "The frontend image-owned /etc/nginx/mime.types was removed; restarting retains the deletion. Confirm the exact missing path from frontend startup logs."
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_logs {\"name\":\"edge-victim\",\"tail\":50}",
+        "purpose": "Require [emerg] open() /etc/nginx/mime.types failed; a read-only mounted default.conf notice is unrelated."
+      },
+      {
+        "level": "R",
+        "command": "docker_ps {}",
+        "purpose": "Confirm frontend exited; an exited container cannot run docker_exec."
+      },
+      {
+        "level": "R",
+        "command": "read_config {}",
+        "purpose": "This reads the mounted SITE only; restore_config cannot recreate image-owned mime.types."
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "After confirming that missing image file, docker_start {\"name\":\"edge-victim\"} once; collect fresh frontend logs and check_health {}.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "If same missing image file and health failure persist after start/restart, recreate_stack {\"name\":\"edge-victim\",\"replace\":true} under reviewer; check_health {}.",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "OPERATOR ONLY: docker cp <same-image-known-good-mime.types> edge-victim:/etc/nginx/mime.types; docker start edge-victim. Verify nginx -t when running and both health URLs; preserve any existing file first.",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "Keep the image digest and any previous single-file backup. Replacement has no writable-layer undo; if the baseline cannot be reconstructed, stop and restore the approved deployment/backup with an operator. Do not restore the injected missing state."
+    ],
+    "verify": [
+      "check_health {}: / and /api/ both 200, then repeat after a short observation interval; a tool success alone is not recovery.",
+      "docker_ps {}: target stays Up; inspect fresh logs for the original error."
+    ],
+    "safety": [
+      "Recorded failure labels are not live proof. Confirm the target and mechanism before any write; search_runbooks first.",
+      "This repair card is for the two disposable demo containers. Container replacement loses its writable layer: preserve required evidence/state first; never apply blindly to a persistent service.",
+      "Follow existing restart, post-restart failing-health and reviewer preconditions. A refusal is not permission to bypass the gate.",
+      "No bulk file/directory deletion, recursive cleanup or arbitrary host process killing. Historical failed actions in case metadata are not repair instructions.",
+      "The proposed fixes have not yet been validated by this new replay; FAIL and TIMEOUT records never become proven_here successes.",
+      "Official reference checked 2026-10-21: https://docs.docker.com/engine/storage/",
+      "Official reference checked 2026-10-21: https://docs.docker.com/reference/cli/docker/container/cp/",
+      "Official reference checked 2026-10-21: https://nginx.org/en/docs/switches.html",
+      "Official reference checked 2026-10-21: https://nginx.org/en/docs/ngx_core_module.html#include"
+    ],
+    "escalate": [
+      "Log names a mounted conf.d file instead, or image/baseline is unknown: follow mounted-config recovery; do not replace blindly."
+    ],
+    "tags": [
+      "mime.types",
+      "nginx",
+      "missing image file"
+    ]
+  },
+  {
+    "id": "card-docker-stopped-nginx-workers",
+    "title": "Upstream running but Nginx workers stopped by SIGSTOP",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "local-drill:upstream-sigstop"
+    ],
+    "symptoms": [
+      "nginx worker stopped",
+      "worker SIGSTOP",
+      "State T stopped"
+    ],
+    "root_causes": [
+      "Worker processes can be stopped while PID 1 and the container remain running. Timeout alone does not establish SIGSTOP."
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_ps {}",
+        "purpose": "Confirm Up rather than Paused or Exited; inspect backend logs and health."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"cat /proc/1/task/1/children\"}",
+        "purpose": "Read actual child PID(s); do not invent a PID or assume ps is installed."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"cat /proc/<listed-child-pid>/status\"}",
+        "purpose": "Confirm nginx worker and State T/t; inspect another child if needed. Missing files or exec errors are not proof."
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "With stopped workers confirmed, docker_restart {\"name\":\"edge-victim-app\"} once to replace the process tree; check_health {}.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "If still failing, re-read worker state, pids limits, logs and network evidence. Do not repeatedly restart or rewrite healthy frontend config; escalate if the stop recurs.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "OPERATOR ONLY alternative: after verifying each stopped worker PID, docker exec edge-victim-app kill -CONT <verified-worker-pid>. docker kill --signal=CONT targets PID 1 and does not resume independently stopped workers.",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "Do not undo recovery by sending SIGSTOP again. Preserve evidence if an external actor keeps stopping workers; restore the approved process baseline or escalate."
+    ],
+    "verify": [
+      "check_health {}: / and /api/ both 200, then repeat after a short observation interval; a tool success alone is not recovery.",
+      "docker_ps {}: target stays Up; inspect fresh logs for the original error."
+    ],
+    "safety": [
+      "Recorded failure labels are not live proof. Confirm the target and mechanism before any write; search_runbooks first.",
+      "This repair card is for the two disposable demo containers. Container replacement loses its writable layer: preserve required evidence/state first; never apply blindly to a persistent service.",
+      "Follow existing restart, post-restart failing-health and reviewer preconditions. A refusal is not permission to bypass the gate.",
+      "No bulk file/directory deletion, recursive cleanup or arbitrary host process killing. Historical failed actions in case metadata are not repair instructions.",
+      "The proposed fixes have not yet been validated by this new replay; FAIL and TIMEOUT records never become proven_here successes.",
+      "Official reference checked 2026-10-21: https://docs.kernel.org/filesystems/proc.html",
+      "Official reference checked 2026-10-21: https://man7.org/linux/man-pages/man7/signal.7.html",
+      "Official reference checked 2026-10-21: https://docs.docker.com/reference/cli/docker/container/kill/"
+    ],
+    "escalate": [
+      "Stopped workers recur, no child-state evidence, or restart cannot complete: inspect the controller/operator responsible."
+    ],
+    "tags": [
+      "SIGSTOP",
+      "nginx worker",
+      "State T",
+      "timeout"
+    ]
+  },
+  {
+    "id": "card-docker-forced-http-response",
+    "title": "Backend own Nginx config forces 301/429; distinguish legitimate traffic policy",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "local-drill:upstream-429",
+      "local-drill:upstream-redirect"
+    ],
+    "symptoms": [
+      "upstream redirect loop",
+      "301 redirect on /api/",
+      "too many requests 429 upstream",
+      "backend return 429"
+    ],
+    "root_causes": [
+      "The demo injection writes an unconditional return 301 or return 429 into the backend writable config. Real rate limiting or intentional redirects require a different response."
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"curl -sS -m 3 -I http://127.0.0.1/\"}",
+        "purpose": "Read direct status and Location without following redirects; compare with front /api/."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim-app\",\"cmd\":\"cat /etc/nginx/conf.d/default.conf\"}",
+        "purpose": "Require the backend unconditional return or confirmed loop; read_config is frontend-only."
+      },
+      {
+        "level": "R",
+        "command": "docker_logs {\"name\":\"edge-victim-app\",\"tail\":50}",
+        "purpose": "Correlate direct responses; a 429 alone is not proof of a broken config or overload."
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "For confirmed injected backend response rule, docker_restart {\"name\":\"edge-victim-app\"} once; check_health {}.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "If same own-layer rule and non-200 /api/ persist after restart, recreate_stack {\"name\":\"edge-victim-app\",\"replace\":true} under reviewer; check_health {}.",
+        "approval_required": true
+      },
+      {
+        "level": "W",
+        "action": "OPERATOR ONLY alternative: save the affected backend file, docker cp <approved-backend-default.conf> edge-victim-app:/etc/nginx/conf.d/default.conf, then nginx -t and reload/restart the confirmed target. Never disable a legitimate rate limit globally.",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "Restore only an approved previously healthy backend file using docker cp and validate it before restart. Never restore the injected return/loop. Replacement has no automatic writable-layer rollback."
+    ],
+    "verify": [
+      "check_health {}: / and /api/ both 200, then repeat after a short observation interval; a tool success alone is not recovery.",
+      "docker_ps {}: target stays Up; inspect fresh logs for the original error."
+    ],
+    "safety": [
+      "Recorded failure labels are not live proof. Confirm the target and mechanism before any write; search_runbooks first.",
+      "This repair card is for the two disposable demo containers. Container replacement loses its writable layer: preserve required evidence/state first; never apply blindly to a persistent service.",
+      "Follow existing restart, post-restart failing-health and reviewer preconditions. A refusal is not permission to bypass the gate.",
+      "No bulk file/directory deletion, recursive cleanup or arbitrary host process killing. Historical failed actions in case metadata are not repair instructions.",
+      "The proposed fixes have not yet been validated by this new replay; FAIL and TIMEOUT records never become proven_here successes.",
+      "Official reference checked 2026-10-21: https://docs.docker.com/engine/storage/",
+      "Official reference checked 2026-10-21: https://docs.docker.com/reference/cli/docker/container/cp/",
+      "Official reference checked 2026-10-21: https://nginx.org/en/docs/http/ngx_http_rewrite_module.html#return",
+      "Official reference checked 2026-10-21: https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req_status"
+    ],
+    "escalate": [
+      "No unconditional response rule, intentional redirect, actual load or legitimate rate limit: investigate the real policy/traffic rather than recreate."
+    ],
+    "tags": [
+      "301",
+      "429",
+      "redirect loop",
+      "return",
+      "backend config"
+    ]
+  },
+  {
+    "id": "card-docker-empty-site-config",
+    "title": "Frontend running without a listener because mounted site config is empty",
+    "scenario": "other",
+    "platform": "docker",
+    "risk_tier": 2,
+    "fault_types": [
+      "local-drill:config-empty"
+    ],
+    "symptoms": [
+      "empty nginx configuration",
+      "no server block",
+      "default.conf empty"
+    ],
+    "root_causes": [
+      "An empty mounted frontend site can pass nginx -t while defining no server/listen block. Recreating the container keeps the empty host mount."
+    ],
+    "checks": [
+      {
+        "level": "R",
+        "command": "docker_ps {}",
+        "purpose": "Distinguish Up with no service from stopped/paused containers."
+      },
+      {
+        "level": "R",
+        "command": "read_config {}",
+        "purpose": "Require empty/missing expected server block in the FRONTEND mounted site."
+      },
+      {
+        "level": "R",
+        "command": "docker_exec {\"name\":\"edge-victim\",\"cmd\":\"nginx -T\"}",
+        "purpose": "Confirm effective configuration lacks the expected listener; syntax success is not HTTP readiness."
+      }
+    ],
+    "remediation": [
+      {
+        "level": "W",
+        "action": "For confirmed empty frontend site, restore_config {\"source\":\"known-good\"}; docker_restart {\"name\":\"edge-victim\"}; check_health {}.",
+        "approval_required": false
+      },
+      {
+        "level": "W",
+        "action": "If no known-good snapshot exists, use write_config with the full approved frontend configuration from this deployment, then docker_restart edge-victim and check_health. Never invent proxy routes.",
+        "approval_required": false
+      }
+    ],
+    "rollback": [
+      "If a newly written configuration regresses, restore_config {\"source\":\"previous\"} only when that previous snapshot was verified healthy, then restart frontend and verify both URLs. Preserve the empty file as evidence rather than treating it as a rollback target."
+    ],
+    "verify": [
+      "check_health {}: / and /api/ both 200, then repeat after a short observation interval; a tool success alone is not recovery.",
+      "docker_ps {}: target stays Up; inspect fresh logs for the original error."
+    ],
+    "safety": [
+      "Recorded failure labels are not live proof. Confirm the target and mechanism before any write; search_runbooks first.",
+      "This repair card is for the two disposable demo containers. Container replacement loses its writable layer: preserve required evidence/state first; never apply blindly to a persistent service.",
+      "Follow existing restart, post-restart failing-health and reviewer preconditions. A refusal is not permission to bypass the gate.",
+      "No bulk file/directory deletion, recursive cleanup or arbitrary host process killing. Historical failed actions in case metadata are not repair instructions.",
+      "The proposed fixes have not yet been validated by this new replay; FAIL and TIMEOUT records never become proven_here successes.",
+      "Official reference checked 2026-10-21: https://docs.docker.com/engine/storage/",
+      "Official reference checked 2026-10-21: https://docs.docker.com/engine/storage/bind-mounts/",
+      "Official reference checked 2026-10-21: https://nginx.org/en/docs/switches.html"
+    ],
+    "escalate": [
+      "No trusted snapshot/approved full config, or file is not empty: diagnose the observed fault; rebuilding cannot repair a bad bind mount."
+    ],
+    "tags": [
+      "empty config",
+      "no server block",
+      "frontend listener"
+    ]
+  }
+]
